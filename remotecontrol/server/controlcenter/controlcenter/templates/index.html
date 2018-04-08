@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Control Center</title>
+    <link rel="stylesheet" href="static/css/main.css" type="text/css">
+</head>
+<body>
+
+  <h1>Realtime communication with WebRTC</h1>
+
+<div id="videos">
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay></video>
+</div>
+
+
+ <div id="container">
+
+    <h2>Select sources &amp; outputs</h2>
+
+    <div class="select">
+      <label for="audioSource">Audio input source: </label><select id="audioSource"></select>
+    </div>
+
+    <div class="select">
+      <label for="audioOutput">Audio output destination: </label><select id="audioOutput"></select>
+    </div>
+
+    <div class="select">
+      <label for="videoSource">Video source: </label><select id="videoSource"></select>
+    </div>
+
+    <video id="video" playsinline autoplay></video>
+
+    <p class="small"><b>Note:</b> If you hear a reverb sound your microphone is picking up the output of your speakers/headset, lower the volume and/or move the microphone further away from your speakers/headset.</p>
+
+    <a href="https://github.com/webrtc/samples/tree/gh-pages/src/content/devices/input-output" title="View source for this page on GitHub" id="viewSource">View source on GitHub</a>
+  </div>
+
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+  <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+  <script src="static/js/main.js"></script>
+
+  <script type="text/javascript" charset="utf-8">
+  /*
+    var socket = io.connect('https://' + document.domain + ':' + location.port);
+    socket.on('connect', function() {
+        console.log("socketio connected");
+    });
+    socket.on('disconnect', function() {
+        console.log("socketio disconnected");
+    });
+    */
+</script>
+</body>
+</html>

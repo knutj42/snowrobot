@@ -1,0 +1,19 @@
+
+* set up a turn server on the VPS (in docker). Check that it works to connect a phone that isn't on the wifi network.
+
+* write a new signaling server with proper robot support. The robot should connect
+  on one endpoint, and the webapp on another endpoint, so that the server knows who is who.
+
+  Only one robot and one webapp should be allowed to connect at once. Newest connection wins (so that a reload will
+  work).
+
+  The server should support multiple different robots (maybe use a different room for each robot-name?)
+
+  The needs to handle disconnect/reconnects and changing video sources robustly.
+
+  Write a "robot" webapp to simulate the android app; it is much quicker to test and debug the webrtc functionality
+  in a webapp first.
+
+
+
+* use localstorage to remember the user's camera selection

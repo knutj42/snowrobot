@@ -1,0 +1,7 @@
+venv
+.idea
+*egg-info*
+__pycache__
+*.egg
+*.log
+nginx.pid

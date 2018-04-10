@@ -1,7 +1,43 @@
+.main {
+  display: flex;
+}
 
+.main .video {
+  width: 50%;
+  position: relative;
+  padding: 1em;
+}
+
+
+
+.main .video .local-video {
+  width: 25%;
+  position: absolute;
+  right: 2em;
+  bottom: 2em;
+  border-style: solid;
+  border-width: 2px;
+}
+
+
+.main .video .remote-video {
+  width: 100%;
+  border-style: solid;
+  border-width: 2px;
+}
+
+
+
+.main .status {
+  width: 50%;
+}
 
 .status ul {
   list-style-type: none;
+}
+
+.status .ok {
+  color: green;
 }
 
 .status .ok:before {
@@ -16,6 +52,10 @@
   color: #green;
 }
 
+
+.status .error {
+  color: red;
+}
 
 .status .error:before {
   content:'❌';

@@ -1,18 +1,9 @@
 import React, { Component } from 'react';
-import { BrowserRouter as Router, Route, Link } from "react-router-dom";
+import { BrowserRouter as Router, Route, NavLink} from "react-router-dom";
 import io from 'socket.io-client';
 import './App.css';
 import { Configuration} from './Configuration.js';
-
-var socket = io.connect();
-
-class Home extends Component {
-  render() {
-    return (
-      <div>Home component</div>
-      );
-  }
-}
+import { Cockpit } from './Cockpit.js';
 
 
 function handleError(error) {
@@ -23,22 +14,35 @@ function handleError(error) {
 
 function sendMessage(message) {
   console.log('Client sending message: ', message);
-  socket.emit('message', message);
+//  socket.emit('message', message);
 }
 
 class App extends Component {
   constructor(props) {
     super(props);
-    this.videoElement = null;
     this.state = {
       selectedVideoSource: localStorage.getItem("selectedVideoSource"),
       selectedAudioSource: localStorage.getItem("selectedAudioSource"),
       selectedAudioOutput: localStorage.getItem("selectedAudioOutput"),
+      connectedToServer: false,
+      connectedToRobot: false,
       mediaDevices: [],
       controllerConnected: false,
       robotConnected: false,
     };
 
+    const socket = io.connect();
+    this.socket = socket;
+
+    socket.on('connect', () => {
+      console.log("Connected to the server");
+      this.setState({connectedToServer: true});
+    });
+
+    socket.on('disconnect', () => {
+      console.log("Lost the connection to the server");
+      this.setState({connectedToServer: false});
+    });
     socket.on('robot-connected', () => {this.setState({'robotConnected': true})});
     socket.on('robot-disconnected', () => {this.setState({'robotConnected': false})});
 
@@ -98,7 +102,6 @@ class App extends Component {
         });
         this.setState({localVideoSteam: null,
         });
-        this.videoElement.srcObject = null;
       }
       const audioSource = this.state.selectedAudioSource;
       const videoSource = this.state.selectedVideoSource;
@@ -140,8 +143,6 @@ class App extends Component {
   }
 
   gotStream = (stream) => {
-    this.videoElement.srcObject = stream;
-
     this.setState({assignedVideoSource: this.state.selectedVideoSource,
                    assignedAudioSource: this.state.selectedAudioSource,
                    localVideoSteam: stream,
@@ -152,62 +153,37 @@ class App extends Component {
   }
 
   render() {
-    let configIsRequiredMsg = "";
-    if (!this.state.selectedVideoSource) {
-      configIsRequiredMsg = "You must select which camera to use.";
-    }
     return (
       <Router>
         <div>
-          <h1>Control Center</h1>
           <div>
-            <ul>
-              <li className={this.state.selectedVideoSource ? "ok" : "pending"}>Video source</li>
-            </ul>
-          </div>
-
-          <div>
-            <ul>
-              <li>
-                <Link to="/">Home</Link>
-              </li>
-              <li>
-                <Link to="/config">Configuration</Link>
-              </li>
-            </ul>
-
-            <div>
-              <video autoPlay ref={(video) => { this.videoElement = video; }} />
+            <div className="nav">
+              <ul>
+                <li>
+                  <NavLink exact to="/">Cockpit</NavLink>
+                </li>
+                <li>
+                  <NavLink to="/config">Configuration</NavLink>
+                </li>
+              </ul>
             </div>
 
             <hr />
-            {!configIsRequiredMsg &&
-              <div>
-                <Route exact path="/" component={Home} />
-                <Route path="/config" render={()=><Configuration
-                                                     mediaDevices={this.state.mediaDevices}
-                                                     selectedVideoSource={this.state.selectedVideoSource}
-                                                     selectedAudioSource={this.state.selectedAudioSource}
-                                                     selectedAudioOutput={this.state.selectedAudioOutput}
-                                                     setMainState={this.setMainState}
-                                                     />}
+            <Route exact path="/" render={()=> <Cockpit
+              localVideoSteam={this.state.localVideoSteam}
+              connectedToServer={this.state.connectedToServer}
+              connectedToRobot={this.state.connectedToRobot}
+              />
+            } />
+            <Route path="/config" render={()=><Configuration
+                                                 mediaDevices={this.state.mediaDevices}
+                                                 selectedVideoSource={this.state.selectedVideoSource}
+                                                 selectedAudioSource={this.state.selectedAudioSource}
+                                                 selectedAudioOutput={this.state.selectedAudioOutput}
+                                                 setMainState={this.setMainState}
+                                                 />}
 
-                                                    />
-              </div>
-            }
-
-            {configIsRequiredMsg &&
-              <div>
-                <div className="configIsRequiredMsg">{configIsRequiredMsg}</div>
-                <Configuration
-                   mediaDevices={this.state.mediaDevices}
-                   selectedVideoSource={this.state.selectedVideoSource}
-                   selectedAudioSource={this.state.selectedAudioSource}
-                   selectedAudioOutput={this.state.selectedAudioOutput}
-                   setMainState={this.setMainState}
-                   />
-              </div>
-            }
+                                                />
 
           </div>
         </div>

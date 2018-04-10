@@ -1,8 +1,10 @@
 import React, { Component } from 'react';
 import { BrowserRouter as Router, Route, Link } from "react-router-dom";
-
+import io from 'socket.io-client';
 import './App.css';
 import { Configuration} from './Configuration.js';
+
+var socket = io.connect();
 
 class Home extends Component {
   render() {
@@ -19,6 +21,11 @@ function handleError(error) {
 }
 
 
+function sendMessage(message) {
+  console.log('Client sending message: ', message);
+  socket.emit('message', message);
+}
+
 class App extends Component {
   constructor(props) {
     super(props);
@@ -28,14 +35,63 @@ class App extends Component {
       selectedAudioSource: localStorage.getItem("selectedAudioSource"),
       selectedAudioOutput: localStorage.getItem("selectedAudioOutput"),
       mediaDevices: [],
+      controllerConnected: false,
+      robotConnected: false,
     };
+
+    socket.on('robot-connected', () => {this.setState({'robotConnected': true})});
+    socket.on('robot-disconnected', () => {this.setState({'robotConnected': false})});
 
     navigator.mediaDevices.enumerateDevices().then(this.gotDevices).catch(handleError);
   }
 
+  createPeerConnection = () => {
+    this.removePeerConnectionIfNeeded();
+    try {
+      const pc = new RTCPeerConnection(null);
+      pc.onicecandidate = this.handleIceCandidate;
+      pc.onaddstream = this.handleRemoteStreamAdded;
+      pc.onremovestream = this.handleRemoteStreamRemoved;
+      this.setState({peerConnection: pc});
+      console.log('Created RTCPeerConnnection');
+
+    } catch (e) {
+      console.log('Failed to create PeerConnection, exception: ' + e.message);
+      alert('Cannot create RTCPeerConnection object.');
+      return;
+    }
+  }
+
+  /* This is called when the PeerConnection has generated a local ice candidate. */
+  handleIceCandidate = (event) => {
+    console.log('icecandidate event: ', event);
+    if (event.candidate) {
+      sendMessage({
+        type: 'candidate',
+        label: event.candidate.sdpMLineIndex,
+        id: event.candidate.sdpMid,
+        candidate: event.candidate.candidate
+      });
+    } else {
+      console.log('End of candidates.');
+    }
+  }
+
+
+  removePeerConnectionIfNeeded = () => {
+    if (this.state.peerConnection) {
+      this.state.peerConnection.close();
+    }
+    this.setState({peerConnection: null});
+  }
+
+
   changeAudioOrVideoSourceIfNeeded = () => {
     if ((this.state.assignedVideoSource !== this.state.selectedVideoSource)
     || (this.state.assignedAudioSource !== this.state.selectedAudioSource)) {
+      // Something has changed, so clear current streams and connections.
+      this.removePeerConnectionIfNeeded();
+
       if (this.state.localVideoSteam) {
         this.state.localVideoSteam.getTracks().forEach(function(track) {
           track.stop();
@@ -105,7 +161,9 @@ class App extends Component {
         <div>
           <h1>Control Center</h1>
           <div>
-            mediaDevices: {this.state.mediaDevices.length}
+            <ul>
+              <li className={this.state.selectedVideoSource ? "ok" : "pending"}>Video source</li>
+            </ul>
           </div>
 
           <div>
@@ -144,6 +202,8 @@ class App extends Component {
                 <Configuration
                    mediaDevices={this.state.mediaDevices}
                    selectedVideoSource={this.state.selectedVideoSource}
+                   selectedAudioSource={this.state.selectedAudioSource}
+                   selectedAudioOutput={this.state.selectedAudioOutput}
                    setMainState={this.setMainState}
                    />
               </div>

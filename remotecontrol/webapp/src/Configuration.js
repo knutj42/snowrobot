@@ -18,6 +18,13 @@ export class Configuration extends Component {
     this.props.setMainState({selectedAudioOutput: event.target.value});
   }
 
+  onSimulateRobotChanged = (event) => {
+    localStorage.setItem("simulateRobot", event.target.checked ? "true": "false");
+    this.props.setMainState({simulateRobot: event.target.checked});
+  }
+
+
+
   render() {
 
     const videoInputOptions = [
@@ -28,14 +35,14 @@ export class Configuration extends Component {
     ];
 
     const audioInputOptions = [
-      (<option key="none">
+      (<option key="none" value="">
          *Select which microphone to use*
        </option>
        ),
     ];
 
     const audioOutputOptions = [
-      (<option key="none">
+      (<option key="none" value="">
          *Select which audio output to use*
        </option>
        ),
@@ -84,7 +91,7 @@ export class Configuration extends Component {
           <div>
             <label>
             Microphone: &nbsp;
-            <select value={this.props.selectedMicrophone || ""} onChange={this.onAudioSourceChanged}>
+            <select value={this.props.selectedAudioSource || ""} onChange={this.onAudioSourceChanged}>
               {audioInputOptions}
             </select>
             </label>
@@ -95,6 +102,14 @@ export class Configuration extends Component {
             <select value={this.props.selectedAudioOutput|| ""} onChange={this.onAudioOutputChanged}>
               {audioOutputOptions}
             </select>
+            </label>
+          </div>
+          <div>
+            <label>
+            Simulate robot: &nbsp;
+            <input type="checkbox" checked={this.props.simulateRobot} onChange={this.onSimulateRobotChanged}>
+
+            </input>
             </label>
           </div>
         </div>

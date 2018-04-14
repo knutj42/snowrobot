@@ -12,38 +12,42 @@ robot_sid = None
 controller_sid = None
 
 @socketio.on('i-am-the-robot')
-def handle_i_am_the_robot(message):
+def handle_i_am_the_robot():
     """This handles the initial message that the robot sends when it connects to the server."""
     global robot_sid, controller_sid
     logger.info("handle_i_am_the_robot(): old robot_sid:%s  new robot_sid:%s",
                 robot_sid, flask.request.sid)
     if robot_sid != flask.request.sid:
-        if robot_sid:
-            logger.warning("handle_i_am_the_robot(): disconnecting the old robot_sid:%s  (new robot_sid:%s)",
-                           robot_sid, flask.request.sid)
-            socketio.disconnect(sid=robot_sid)
+        old_robot_sid = robot_sid
         robot_sid = flask.request.sid
+        if old_robot_sid:
+            logger.warning("handle_i_am_the_robot(): disconnecting the old robot_sid:%s  (new robot_sid:%s)",
+                           old_robot_sid, flask.request.sid)
+            flask_socketio.disconnect(sid=old_robot_sid)
         if controller_sid:
-            # We already have a controller, so tell it that the robot has connected
-            socketio.emit("robot-connected", room=controller_sid)
+            # We already have a controller, so tell the robot and controller about each other
+            flask_socketio.emit("robot-connected", room=controller_sid)
+            flask_socketio.emit("controller-connected", room=robot_sid)
 
 
 @socketio.on('i-am-the-controller')
-def handle_i_am_the_controller(message):
+def handle_i_am_the_controller():
     """This handles the initial message that the controller webapp sends when it connects to the server."""
     global robot_sid, controller_sid
     logger.info("handle_i_am_the_controller(): old controller_sid:%s  new controller_sid:%s",
                 controller_sid, flask.request.sid)
     if controller_sid != flask.request.sid:
-        if controller_sid:
-            logger.warning("handle_i_am_the_controller(): disconnecting the old controller_sid:%s  (new controller_sid:%s)",
-                           controller_sid, flask.request.sid)
-            socketio.disconnect(sid=controller_sid)
+        old_controller_sid = controller_sid
         controller_sid = flask.request.sid
+        if old_controller_sid:
+            logger.warning("handle_i_am_the_controller(): disconnecting the old controller_sid:%s  (new controller_sid:%s)",
+                           old_controller_sid, flask.request.sid)
+            flask_socketio.disconnect(sid=old_controller_sid)
 
         if robot_sid:
             # We already have a robot_sid, so tell it that the controller has connected
-            socketio.emit("controller-connected", room=robot_sid)
+            flask_socketio.emit("controller-connected", room=robot_sid)
+            flask_socketio.emit("robot-connected", room=controller_sid)
 
 
 @socketio.on('webrtc-offer')
@@ -64,7 +68,7 @@ def handle_webrtc_offer(message):
         return
 
     # send the offer to the robot
-    socketio.emit('webrtc-offer', args=message, room=robot_sid)
+    flask_socketio.emit('webrtc-offer', message, room=robot_sid)
 
 
 @socketio.on('webrtc-answer')
@@ -86,26 +90,26 @@ def handle_webrtc_answer(message):
         return
 
     # send the answer to the controller
-    socketio.emit('webrtc-answer', args=message, room=controller_sid)
+    socketio.emit('webrtc-answer', message, room=controller_sid)
 
 
-@socketio.on('webrtc-candidate')
-def handle_webrtc_candidate(message):
+@socketio.on('ice-candidate')
+def handle_ice_candidate(message):
     """This handles the message the robot and controller sends when it tell the other party about
     a connection candidate."""
     global controller_sid, robot_sid
-    logger.info("handle_webrtc_candidate(): sid:%s %s", flask.request.sid, message)
+    logger.info("handle_ice_candidate(): sid:%s %s", flask.request.sid, message)
     if flask.request.sid == robot_sid:
         # forward the candiate to the controller
-        socketio.emit('webrtc-answer', args=message, room=controller_sid)
+        flask_socketio.emit('ice-candidate', message, room=controller_sid)
 
     elif flask.request.sid == controller_sid:
         # forward the candiate to the robot
-        socketio.emit('webrtc-answer', args=message, room=robot_sid)
+        flask_socketio.emit('ice-candidate', message, room=robot_sid)
 
     else:
         logger.warning(
-            "Got a 'webrtc-candidate'-message from a client (sid:'%s') that is neither the robot nor the controller!",
+            "Got a 'ice-candidate'-message from a client (sid:'%s') that is neither the robot nor the controller!",
             flask.request.sid)
         flask_socketio.disconnect(sid=flask.request.sid)
         return
@@ -119,15 +123,15 @@ def test_connect():
 @socketio.on('disconnect')
 def test_disconnect():
     global robot_sid, controller_sid
-    logger.info('Client disconnected')
+    logger.info('Client %s disconnected', flask.request.sid)
     if flask.request.sid == robot_sid:
-        logger.info("The robot disconnected.")
+        logger.info("The robot %s disconnected.", robot_sid)
         robot_sid = None
         if controller_sid:
-            socketio.emit("robot-disconnected", room=controller_sid)
+            flask_socketio.emit("robot-disconnected", room=controller_sid)
 
     if flask.request.sid == controller_sid:
-        logger.info("The controller disconnected.")
+        logger.info("The controller %s disconnected.", controller_sid)
         controller_sid = None
         if robot_sid:
-            socketio.emit("controller-disconnected", room=robot_sid)
+            flask_socketio.emit("controller-disconnected", room=robot_sid)

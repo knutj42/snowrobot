@@ -277,6 +277,7 @@ function createPeerConnection() {
     pc = new RTCPeerConnection(null);
     pc.onicecandidate = handleIceCandidate;
     pc.onaddstream = handleRemoteStreamAdded;
+    pc.onaddstream = handleRemoteStreamAdded;
     pc.onremovestream = handleRemoteStreamRemoved;
     console.log('Created RTCPeerConnnection');
   } catch (e) {
@@ -357,8 +358,8 @@ function requestTurn(turnURL) {
 }
 
 function handleRemoteStreamAdded(event) {
-  console.log('Remote stream added.');
   remoteStream = event.stream;
+  console.log('Remote stream added: ' + remoteStream.toString());
   remoteVideo.srcObject = remoteStream;
 }
 

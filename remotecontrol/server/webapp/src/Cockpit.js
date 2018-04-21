@@ -17,23 +17,26 @@ export class Cockpit extends Component {
     const hasConnectionToServer = this.props.connectedToServer;
     const robotConnected = this.props.robotConnected;
     const controllerConnected = this.props.controllerConnected;
-    const hasCamera = this.props.localVideoSteam;
     const iceConnectionState = this.props.iceConnectionState;
+    const signalingState = this.props.signalingState;
     const okClass = "ok";
     const errorClass = "error";
 
     const statusListElements = [
-              (<li key="camera" className={hasCamera?okClass:errorClass}             >Camera</li>),
               (<li key="server" className={hasConnectionToServer?okClass:errorClass} >Server</li>),
 
               ];
     if (this.props.simulateRobot) {
-      statusListElements.push(<li key="controller" className={controllerConnected?okClass:errorClass}  >Controller is online</li>);
+      const peerStatus = controllerConnected ? "online" : "offline";
+      statusListElements.push(<li key="controller" className={controllerConnected?okClass:errorClass}  >Controller is {peerStatus}</li>);
     } else {
-      statusListElements.push(<li key="robot" className={robotConnected?okClass:errorClass}  >Robot is online</li>);
+      const peerStatus = robotConnected ? "online" : "offline";
+      statusListElements.push(<li key="robot" className={robotConnected?okClass:errorClass}  >Robot is {peerStatus}</li>);
     }
 
     statusListElements.push(<li key="iceConnectionState" className={iceConnectionState==="connected" || iceConnectionState==="completed"?okClass:errorClass} >iceConnectionState: {iceConnectionState || "none"}</li>);
+
+    statusListElements.push(<li key="signalingState" className={signalingState==="stable"?okClass:errorClass} >signalingState: {signalingState || "none"}</li>);
 
     return (
       <div className="main">

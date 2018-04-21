@@ -23,6 +23,9 @@ def handle_i_am_the_robot():
         if old_robot_sid:
             logger.warning("handle_i_am_the_robot(): disconnecting the old robot_sid:%s  (new robot_sid:%s)",
                            old_robot_sid, flask.request.sid)
+            if controller_sid:
+                # Tell the controller that the old robot has been disconnected.
+                flask_socketio.emit("robot-disconnected", room=controller_sid)
             flask_socketio.disconnect(sid=old_robot_sid)
         if controller_sid:
             # We already have a controller, so tell the robot and controller about each other
@@ -42,6 +45,9 @@ def handle_i_am_the_controller():
         if old_controller_sid:
             logger.warning("handle_i_am_the_controller(): disconnecting the old controller_sid:%s  (new controller_sid:%s)",
                            old_controller_sid, flask.request.sid)
+            if robot_sid:
+                # Tell the robot that the old robot has been disconnected.
+                flask_socketio.emit("controller-disconnected", room=robot_sid)
             flask_socketio.disconnect(sid=old_controller_sid)
 
         if robot_sid:
@@ -55,20 +61,21 @@ def handle_webrtc_offer(message):
     """This handles the message the controller webapp sends when it wants to connect to the robot."""
     global controller_sid, robot_sid
     logger.info("handle_webrtc_offer(): %s", message)
-    if flask.request.sid != controller_sid:
-        logger.warning("Got a 'webrtc-offer' -message from a sid '%s' that wasn't the controller_sid ('%s')!", 
-                       flask.request.sid, controller_sid)
+    if flask.request.sid not in (robot_sid, controller_sid):
+        logger.warning(
+            "Got a 'webrtc-offer' -message from a sid '%s' that wasn't the controller_sid ('%s') or robot_sid ('%s')!",
+                       flask.request.sid, controller_sid, robot_sid)
         flask_socketio.disconnect(sid=flask.request.sid)
         return
 
-    if not robot_sid:
-        logger.warning("Got a 'webrtc-offer' -message, but no robot is currently connected!",
-                       flask.request.sid, controller_sid)
+    other_party_sid = robot_sid if flask.request.sid == controller_sid else controller_sid
+    if not other_party_sid:
+        logger.warning("Got a 'webrtc-offer' -message, but the other party is not connected!")
         flask_socketio.disconnect(sid=flask.request.sid)
         return
 
-    # send the offer to the robot
-    flask_socketio.emit('webrtc-offer', message, room=robot_sid)
+    # send the offer to the other party
+    flask_socketio.emit('webrtc-offer', message, room=other_party_sid)
 
 
 @socketio.on('webrtc-answer')
@@ -77,20 +84,21 @@ def handle_webrtc_answer(message):
     the controller app."""
     global controller_sid, robot_sid
     logger.info("handle_webrtc_answer(): %s", message)
-    if flask.request.sid != robot_sid:
-        logger.warning("Got a 'webrtc-answer' -message from a sid '%s' that wasn't the robot_sid ('%s')!",
-                       flask.request.sid, robot_sid)
+    if flask.request.sid not in (robot_sid, controller_sid):
+        logger.warning(
+            "Got a 'webrtc-answer' -message from a sid '%s' that wasn't the robot_sid ('%s') or controller_sid(%s)!",
+            flask.request.sid, robot_sid, controller_sid)
         flask_socketio.disconnect(sid=flask.request.sid)
         return
 
-    if not controller_sid:
-        logger.warning("Got a 'webrtc-answer' -message, but no controller is currently connected!",
-                       flask.request.sid, controller_sid)
+    other_party_sid = robot_sid if flask.request.sid == controller_sid else controller_sid
+    if not other_party_sid:
+        logger.warning("Got a 'webrtc-offer' -message, but the other party is not connected!")
         flask_socketio.disconnect(sid=flask.request.sid)
         return
 
-    # send the answer to the controller
-    socketio.emit('webrtc-answer', message, room=controller_sid)
+    # send the answer to the other party
+    socketio.emit('webrtc-answer', message, room=other_party_sid)
 
 
 @socketio.on('ice-candidate')

@@ -35,6 +35,7 @@ class App extends Component {
       controllerConnected: false,
 
       iceConnectionState: null,
+      signalingState: null,
       peerConnection: null,
 
     };
@@ -59,22 +60,13 @@ class App extends Component {
     });
     socket.on('robot-connected', () => {
       this.setState({'robotConnected': true});
-
       console.log("Got a 'robot-connected', message, so I'm creating a RTCPeerConnection() and sending an offer now.");
-      const pc = this.createPeerConnection();
-      pc.createOffer(
-        (sessionDescription) => {
-          this.state.peerConnection.setLocalDescription(sessionDescription);
-          //console.log('handleCreateOfferSuccess sending message', sessionDescription);
-          this.socket.emit("webrtc-offer", sessionDescription);
-        },
-        (error) => {
-          console.log('Failed to create session description: ' + error.toString());
-        }
-      );
+      this.createPeerConnection();
+      this.createOffer();
     });
 
     socket.on('robot-disconnected', () => {
+      console.log("Got a 'robot-disconnected' message.");
       this.setState({'robotConnected': false});
       this.removePeerConnectionIfNeeded();
     });
@@ -87,16 +79,17 @@ class App extends Component {
     socket.on('controller-disconnected', () => {
       console.log("Got a 'controller-disconnected' message.");
       this.setState({'controllerConnected': false});
+      this.removePeerConnectionIfNeeded();
     });
 
 
     socket.on('webrtc-offer', (sessionDescription) => {
-      if (!this.state.simulateRobot) {
-        alert("Got a 'webrtc-offer' message! That is not supposed to happen!")
-      }
-
       console.log("Got a 'webrtc-offer' message.");
-      const pc = this.createPeerConnection();
+
+      let pc = this.state.peerConnection;
+      if (!pc) {
+        pc = this.createPeerConnection();
+      }
       pc.setRemoteDescription(sessionDescription).then((test) => {
         //console.log("Successfully called peerConnection.setRemoteDescription() for the offer from the controller.");
         pc.createAnswer().then(
@@ -104,6 +97,7 @@ class App extends Component {
             pc.setLocalDescription(sessionDescription);
             console.log('sending webrtc-answer');
             this.socket.emit("webrtc-answer", sessionDescription);
+            pc.onnegotiationneeded = this.handleNegotiationNeeded;
           },
           (error) => {
             console.log('Failed to create answer session description: ' + error.toString());
@@ -116,13 +110,11 @@ class App extends Component {
 
 
     socket.on('webrtc-answer', (sessionDescription) => {
-      if (this.state.simulateRobot) {
-        alert("Got a 'webrtc-answer' message while I was pretending to be a robot! That is not supposed to happen!")
-      }
-
       console.log("Got a 'webrtc-answer' message.");
       this.state.peerConnection.setRemoteDescription(sessionDescription).then((test) => {
         //console.log("Successfully called peerConnection.setRemoteDescription() for the answer from the robot.");
+        this.state.peerConnection.onnegotiationneeded = this.handleNegotiationNeeded;
+
       }).catch((error) => {
         console.log('Failed to call peerPonnection.setRemoteDescription(): ' + error.toString());
       });
@@ -169,25 +161,27 @@ class App extends Component {
       };
 
       const pc = new RTCPeerConnection(pcConfig);
+
       pc.onicecandidate = this.handleIceCandidate;
       pc.ontrack = this.handleRemoteTrackAdded;
-
       pc.onremovestream = this.handleRemoteStreamRemoved;
       pc.oniceconnectionstatechange = this.handleICEConnectionStateChange;
+      pc.onsignalingstatechange = this.handleSignalingStateChange;
       this.setState({
         peerConnection: pc,
         iceConnectionState: pc.iceConnectionState,
+        signalingState: pc.signalingState,
       });
       console.log('Created RTCPeerConnnection');
       const localVideoSteam = this.state.localVideoSteam;
       if (localVideoSteam) {
-        /*localVideoSteam.getTracks().forEach(function(track) {
+        localVideoSteam.getTracks().forEach(function(track) {
           console.log("Adding local track to the peerConnection: " + track.toString());
           pc.addTrack(track, localVideoSteam);
         });
-        */
-        console.log("Adding local stream to the peerConnection: " + localVideoSteam.toString());
-        pc.addStream(localVideoSteam);
+
+        //console.log("Adding local stream to the peerConnection: " + localVideoSteam.toString());
+        //pc.addStream(localVideoSteam);
       }
       return pc;
     } catch (e) {
@@ -197,12 +191,47 @@ class App extends Component {
     }
   }
 
+  handleNegotiationNeeded = () => {
+    const signalingState = this.state.signalingState;
+    console.log("handleNegotiationNeeded() running. signalingState:" + signalingState);
+
+    console.log("TODO: get re-negotiation to work properly. For now we just disconnect and reconnect from scratch.")
+    //this.createOffer();
+    this.removePeerConnectionIfNeeded();
+    this.socket.disconnect();
+    this.socket.open();
+  }
+
+
+  createOffer = () => {
+    console.log("App.createOffeR() running");
+    this.state.peerConnection.createOffer(
+      (sessionDescription) => {
+        this.state.peerConnection.setLocalDescription(sessionDescription);
+        //console.log('handleCreateOfferSuccess sending message', sessionDescription);
+        this.socket.emit("webrtc-offer", sessionDescription);
+      },
+      (error) => {
+        console.log('Failed to create session description: ' + error.toString());
+      }
+    );
+  }
+
 
   /* This is called when a new remote media track has been added.*/
   handleRemoteTrackAdded = (event) => {
     const remoteVideoStream = event.streams[0];
     console.log('handleRemoteTrackAdded() running. stream: ' + remoteVideoStream);
     this.setState({remoteVideoStream});
+  }
+
+  handleSignalingStateChange = (event) => {
+    let newstate = null;
+    if (this.state.peerConnection) {
+      newstate = this.state.peerConnection.signalingState;
+    }
+    console.log("handleSignalingStateChange(): " + this.state.signalingState + " => " + newstate);
+    this.setState({signalingState: newstate});
   }
 
   /* This is called when the RTCPeerConnection state has changed.*/
@@ -248,6 +277,7 @@ class App extends Component {
     || (this.state.assignedAudioSource !== this.state.selectedAudioSource)) {
 
       const localVideoSteam = this.state.localVideoSteam;
+      const isCanvasStream = localVideoSteam === this.localVideoStreamFromCanvas;
       if (localVideoSteam) {
         const peerConnection = this.state.peerConnection;
         localVideoSteam.getTracks().forEach(function(trackToRemove) {
@@ -258,7 +288,9 @@ class App extends Component {
               }
             });
           }
-          trackToRemove.stop();
+          if (!isCanvasStream) {
+            trackToRemove.stop();
+          }
         });
         this.setState({localVideoSteam: null,
         });
@@ -281,12 +313,42 @@ class App extends Component {
                        assignedAudioSource: "",
                        localVideoSteam: null,
                        });
+        this.gotStream(this.localVideoStreamFromCanvas);
       }
     }
   }
 
   componentDidMount = () => {
-    this.changeLocalAudioOrVideoSourceIfNeeded();
+    console.log("App.componentDidMount()")
+    const canvas = this.localVideoCanvasElement;
+
+    // we must wait for the dom to be rendered, otherwise the call to canvas.captureStream() wont work.
+    setTimeout(() => {
+      const ctx = canvas.getContext("2d");
+      this.localVideoStreamFromCanvas = canvas.captureStream(25);
+      console.log("this.localVideoStreamFromCanvas:" + this.localVideoStreamFromCanvas.toString());
+      this.changeLocalAudioOrVideoSourceIfNeeded();
+      setInterval(() => {
+          ctx.font = "25px Arial";
+          const d = new Date();
+          let n = d.toISOString();
+
+          ctx.fillStyle ="#FFFFFF";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle ="#00FFFF";
+
+          if (this.state.simulateRobot) {
+            ctx.fillText("Robot time:", 5, 30);
+          } else {
+            ctx.fillText("Controller time:",5,30);
+          }
+
+          ctx.fillText(n, 5, 60);
+
+        }, 1000
+      )
+    }, 100);
+
   }
 
   componentDidUpdate = (prevProps, prevState, snapshot) => {
@@ -366,6 +428,7 @@ class App extends Component {
               robotConnected={this.state.robotConnected}
               controllerConnected={this.state.controllerConnected}
               iceConnectionState={this.state.iceConnectionState}
+              signalingState={this.state.signalingState}
 
               />
             } />
@@ -380,6 +443,11 @@ class App extends Component {
                                                  />}
 
                                                 />
+
+          </div>
+          <div>
+            <h3>Canvas that is used when no camera is selected:</h3>
+            <canvas style={{borderStyle:"solid"}} className="local-video-canvas" ref={(canvas) => { this.localVideoCanvasElement = canvas; }} />
 
           </div>
         </div>

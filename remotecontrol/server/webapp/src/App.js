@@ -6,19 +6,47 @@ import { Configuration} from './Configuration.js';
 import { Cockpit } from './Cockpit.js';
 
 
-function handleError(error) {
-  console.log('navigator.getUserMedia error: ', error);
-  alert('navigator.getUserMedia error: ' + error);
+function handleGetUserMediaError(error) {
+  if (error.name === 'OverconstrainedError') {
+    console.error('navigator.getUserMedia() threw an OverconstrainedError. constraint:' + error.constraint + '. message:' + error.message);
+  } else {
+    console.error('navigator.getUserMedia error: ', error);
+    alert('navigator.getUserMedia error: ' + error);
+  }
 }
+
+
+function handleEnumerateDevicesError(error) {
+  if (error.name === 'OverconstrainedError') {
+    console.error('navigator.mediaDevices.enumerateDevices() threw an OverconstrainedError. constraint:' + error.constraint + '. message:' + error.message);
+  } else {
+    console.error('navigator.mediaDevices.enumerateDevices() error: ', error);
+    alert('navigator.mediaDevices.enumerateDevices() error: ' + error);
+  }
+}
+
 
 class App extends Component {
   constructor(props) {
     super(props);
+
+    const urlParams = new URLSearchParams(window.location.search);
+
+    const isRobot = (urlParams.get("isRobot") === "true");
+    let selectedVideoSource = null;
+    let selectedAudioSource = null;
+    let selectedAudioOutput = null;
+    if (!isRobot) {
+      selectedVideoSource = localStorage.getItem("selectedVideoSource");
+      selectedAudioSource = localStorage.getItem("selectedAudioSource");
+      selectedAudioOutput = localStorage.getItem("selectedAudioOutput");
+    }
     this.state = {
-      selectedVideoSource: localStorage.getItem("selectedVideoSource"),
-      selectedAudioSource: localStorage.getItem("selectedAudioSource"),
-      selectedAudioOutput: localStorage.getItem("selectedAudioOutput"),
-      simulateRobot: localStorage.getItem("simulateRobot") === "true",
+      isRobot,
+      selectedVideoSource,
+      selectedAudioSource,
+      selectedAudioOutput,
+
       hasSentIAmMsg: false,
       localVideoSteam: null,
       remoteVideoStream: null,
@@ -26,6 +54,7 @@ class App extends Component {
       connectedToServer: false,
 
       mediaDevices: [],
+      robotMediaDevices: [],
 
       // This is set to true if the robot has told the signalling server that it is online.
       robotConnected: false,
@@ -37,14 +66,21 @@ class App extends Component {
       iceConnectionState: null,
       signalingState: null,
       peerConnection: null,
-
     };
 
-    const socket = io.connect();
+    const socket = io.connect(null,
+      {
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax : 5000,
+        reconnectionAttempts: 99999,
+      }
+    );
     this.socket = socket;
 
     socket.on('connect', () => {
       console.log("Connected to the server");
+
       this.setState({connectedToServer: true});
       if (this.state.localVideoSteam) {
         this.sendIAmMessage();
@@ -71,11 +107,11 @@ class App extends Component {
       this.removePeerConnectionIfNeeded();
     });
 
-    // The controller* messages are only used when this webapp is pretending to be a robot.
     socket.on('controller-connected', () => {
       console.log("Got a 'controller-connected' message.");
       this.setState({'controllerConnected': true});
-      });
+    });
+
     socket.on('controller-disconnected', () => {
       console.log("Got a 'controller-disconnected' message.");
       this.setState({'controllerConnected': false});
@@ -122,7 +158,11 @@ class App extends Component {
 
 
     this.socket.on("ice-candidate", (message) => {
-      //console.log("Received an 'ice-candidate' message");
+      if (!this.state.peerConnection) {
+        console.log("Received an 'ice-candidate' message, but this.state.peerConnection is null.");
+        return;
+      }
+
       const candidate = new RTCIceCandidate({
         sdpMLineIndex: message.sdpMLineIndex,
         candidate: message.candidate
@@ -136,13 +176,24 @@ class App extends Component {
     });
 
 
+    navigator.mediaDevices.enumerateDevices().then(this.gotDevices).catch(handleEnumerateDevicesError);
+  }
 
-    navigator.mediaDevices.enumerateDevices().then(this.gotDevices).catch(handleError);
+  sendRobotDeviceInfosMessageIfNeeded = () => {
+    if (this.state.isRobot && this.state.dataChannel && this.state.mediaDevices) {
+      console.log("sendRobotDeviceInfosMessageIfNeeded() sending message.");
+      this.state.dataChannel.send(JSON.stringify({
+        "type": "robot-mediadevices",
+        "mediadevices": this.state.mediaDevices
+      }));
+    } else {
+      console.log("sendRobotDeviceInfosMessageIfNeeded() running, but not sending message.");
+    }
   }
 
   sendIAmMessage = () => {
     this.setState({hasSentIAmMsg: true});
-    if (this.state.simulateRobot) {
+    if (this.state.isRobot) {
       console.log("Sending the 'i-am-the-robot' message.");
       this.socket.emit('i-am-the-robot');
     } else {
@@ -152,6 +203,7 @@ class App extends Component {
   }
 
   createPeerConnection = () => {
+    const thisthis = this;
     this.removePeerConnectionIfNeeded();
     try {
       const pcConfig = {
@@ -164,14 +216,54 @@ class App extends Component {
 
       pc.onicecandidate = this.handleIceCandidate;
       pc.ontrack = this.handleRemoteTrackAdded;
-      pc.onremovestream = this.handleRemoteStreamRemoved;
       pc.oniceconnectionstatechange = this.handleICEConnectionStateChange;
       pc.onsignalingstatechange = this.handleSignalingStateChange;
-      this.setState({
+
+
+      const newState = {
         peerConnection: pc,
         iceConnectionState: pc.iceConnectionState,
         signalingState: pc.signalingState,
-      });
+      }
+
+
+      if (!this.state.isRobot) {
+        const dataChannelOptions = {
+          ordered: true,
+          maxRetransmitTime: 3000, // in milliseconds
+        };
+        console.log("Creating a datachannel");
+        const dataChannel =
+          pc.createDataChannel("robotcontrol", dataChannelOptions);
+
+        dataChannel.onerror = function (error) {
+          console.log("Data Channel Error:", error);
+        };
+
+        dataChannel.onmessage = function (event) {
+          let message = event.data;
+          console.log("Got Data Channel Message:", message);
+          message = JSON.parse(message);
+          if (message.type === "robot-mediadevices") {
+            console.info("Got a robot-mediadevices message: " + JSON.stringify(message.mediadevices));
+            thisthis.setState({robotMediaDevices: message.mediadevices});
+          } else {
+            console.error("Got an unknown dataChannel message:" + JSON.stringify(message));
+          }
+        };
+
+        dataChannel.onopen = function () {
+          dataChannel.send("Hello World from the controller!");
+        };
+
+        dataChannel.onclose = function () {
+          console.log("The Data Channel is Closed");
+        };
+        this.setState({dataChannel});
+      }
+      pc.ondatachannel = this.onDataChannel;
+
+      this.setState(newState);
       console.log('Created RTCPeerConnnection');
       const localVideoSteam = this.state.localVideoSteam;
       if (localVideoSteam) {
@@ -183,6 +275,7 @@ class App extends Component {
         //console.log("Adding local stream to the peerConnection: " + localVideoSteam.toString());
         //pc.addStream(localVideoSteam);
       }
+
       return pc;
     } catch (e) {
       console.log('Failed to create PeerConnection, exception: ' + e.message);
@@ -200,6 +293,36 @@ class App extends Component {
     this.removePeerConnectionIfNeeded();
     this.socket.disconnect();
     this.socket.open();
+  }
+
+  onDataChannel = (event) => {
+    const thisthis = this;
+    const dataChannel = event.channel;
+    console.log("onDataChannel() running. dataChannel:" + dataChannel);
+
+    if (!this.state.isRobot) {
+      console.log("onDataChannel() running, but I am not a robot!");
+      return;
+    }
+
+    dataChannel.onerror = function (error) {
+      console.log("Data Channel Error:", error);
+
+    };
+
+    dataChannel.onmessage = function (event) {
+      console.log("Got Data Channel Message:", event.data);
+    };
+
+    dataChannel.onopen = function () {
+      thisthis.sendRobotDeviceInfosMessageIfNeeded();
+    };
+
+    dataChannel.onclose = function () {
+      console.log("The Data Channel is Closed");
+    };
+
+    this.setState({dataChannel})
   }
 
 
@@ -222,6 +345,7 @@ class App extends Component {
   handleRemoteTrackAdded = (event) => {
     const remoteVideoStream = event.streams[0];
     console.log('handleRemoteTrackAdded() running. stream: ' + remoteVideoStream);
+    remoteVideoStream.onremovetrack = this.handleRemoteTrackRemoved;
     this.setState({remoteVideoStream});
   }
 
@@ -260,15 +384,26 @@ class App extends Component {
 
 
   removePeerConnectionIfNeeded = () => {
+    console.log("removePeerConnectionIfNeeded () running.")
     if (this.state.peerConnection) {
       this.state.peerConnection.close();
       console.log("Closed the RTCPeerConnection.");
     }
-    this.setState({
+    const newState = {
       peerConnection: null,
       iceConnectionState: null,
       hasSentIAmMsg: false,
-      });
+      remoteVideoStream: null,
+      robotMediaDevices: [],
+    };
+
+    if (this.state.isRobot) {
+      newState.selectedVideoSource = null;
+      newState.selectedAudioSource = null;
+      newState.selectedAudioOutput = null;
+    }
+
+    this.setState(newState);
   }
 
 
@@ -307,7 +442,9 @@ class App extends Component {
         if (audioSource) {
            constraints.audio = {deviceId: {exact: audioSource}};
         }
-        navigator.mediaDevices.getUserMedia(constraints).then(this.gotStream).then(this.gotDevices).catch(handleError);
+        console.log("changeLocalAudioOrVideoSourceIfNeeded() using constraints:" + JSON.stringify(constraints));
+        navigator.mediaDevices.getUserMedia(constraints).then(this.gotStream).then(this.gotDevices).catch(
+          handleGetUserMediaError);
       } else {
         this.setState({assignedVideoSource: "",
                        assignedAudioSource: "",
@@ -337,7 +474,7 @@ class App extends Component {
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.fillStyle ="#00FFFF";
 
-          if (this.state.simulateRobot) {
+          if (this.state.isRobot) {
             ctx.fillText("Robot time:", 5, 30);
           } else {
             ctx.fillText("Controller time:",5,30);
@@ -349,9 +486,12 @@ class App extends Component {
       )
     }, 100);
 
+    setInterval(this.logStats, 3000);
+
   }
 
   componentDidUpdate = (prevProps, prevState, snapshot) => {
+    console.log("componentDidUpdate() running.")
     if (prevState.selectedVideoSource !== this.state.selectedVideoSource
     || prevState.selectedAudioSource !== this.state.selectedAudioSource) {
       console.log("Updating local video and/or audio inputs.")
@@ -365,10 +505,12 @@ class App extends Component {
   }
 
   gotDevices = (deviceInfos) => {
-    this.setState({mediaDevices: deviceInfos});
+    console.log("gotDevices() deviceInfos: " + JSON.stringify(deviceInfos));
+    this.setState({mediaDevices: deviceInfos}, this.sendRobotDeviceInfosMessageIfNeeded);
   }
 
   gotStream = (stream) => {
+    console.log("gotStream() stream:" + stream);
     const localVideoSteam = stream;
     this.setState({assignedVideoSource: this.state.selectedVideoSource,
                    assignedAudioSource: this.state.selectedAudioSource,
@@ -396,6 +538,39 @@ class App extends Component {
     return navigator.mediaDevices.enumerateDevices();
   }
 
+
+  logStats = () => {
+  /*
+    console.log("logStats() running");
+
+    if (this.state.peerConnection) {
+        const currentRemoteDescription = this.state.peerConnection.currentRemoteDescription;
+        console.log("currentRemoteDescription: ", currentRemoteDescription);
+
+      this.state.peerConnection.getStats(null)
+            .then(function(stats) {
+                console.log("logStats() got stats:", stats);
+
+                stats.forEach(function(value, key) {
+                    console.log("logStats() stats[" + key + "]:", value);
+                });
+
+              Object.keys(stats).forEach(function(key) {
+                console.log("logStats() stats[" + key + "]:", stats[key]);
+
+                if (stats[key].type === "candidatepair" &&
+                    stats[key].nominated && stats[key].state === "succeeded") {
+                  var remote = stats[stats[key].remoteCandidateId];
+                  console.log("Connected to: " + remote.ipAddress +":"+
+                              remote.portNumber +" "+ remote.transport +
+                              " "+ remote.candidateType);
+                }
+              });
+            })
+      .catch(function(e) { console.log(e.name); });
+    }*/
+  }
+
   render() {
     return (
       <Router>
@@ -413,6 +588,7 @@ class App extends Component {
             </div>
 
             <hr />
+
             <Route exact path="/" render={()=> <Cockpit
               localVideoSteam={this.state.localVideoSteam}
               remoteVideoStream={this.state.remoteVideoStream}
@@ -423,7 +599,11 @@ class App extends Component {
               selectedAudioSource={this.state.selectedAudioSource}
               selectedAudioOutput={this.state.selectedAudioOutput}
 
-              simulateRobot={this.state.simulateRobot}
+              selectedRobotVideoSource={this.state.selectedRobotVideoSource}
+              selectedRobotAudioSource={this.state.selectedRobotAudioSource}
+              selectedRobotAudioOutput={this.state.selectedRobotAudioOutput}
+
+              isRobot={this.state.isRobot}
 
               robotConnected={this.state.robotConnected}
               controllerConnected={this.state.controllerConnected}
@@ -434,10 +614,11 @@ class App extends Component {
             } />
             <Route path="/config" render={()=><Configuration
                                                  mediaDevices={this.state.mediaDevices}
+                                                 robotMediaDevices={this.state.robotMediaDevices}
                                                  selectedVideoSource={this.state.selectedVideoSource}
                                                  selectedAudioSource={this.state.selectedAudioSource}
                                                  selectedAudioOutput={this.state.selectedAudioOutput}
-                                                 simulateRobot={this.state.simulateRobot}
+                                                 isRobot={this.state.isRobot}
                                                  iceConnectionState={this.state.iceConnectionState}
                                                  setMainState={this.setMainState}
                                                  />}

@@ -26,7 +26,7 @@ export class Cockpit extends Component {
               (<li key="server" className={hasConnectionToServer?okClass:errorClass} >Server</li>),
 
               ];
-    if (this.props.simulateRobot) {
+    if (this.props.isRobot) {
       const peerStatus = controllerConnected ? "online" : "offline";
       statusListElements.push(<li key="controller" className={controllerConnected?okClass:errorClass}  >Controller is {peerStatus}</li>);
     } else {

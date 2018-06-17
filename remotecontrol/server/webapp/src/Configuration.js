@@ -18,12 +18,17 @@ export class Configuration extends Component {
     this.props.setMainState({selectedAudioOutput: event.target.value});
   }
 
-  onSimulateRobotChanged = (event) => {
-    localStorage.setItem("simulateRobot", event.target.checked ? "true": "false");
-    this.props.setMainState({simulateRobot: event.target.checked});
+  onRobotVideoSourceChanged = (event) => {
+    this.props.setMainState({selectedRobotVideoSource: event.target.value});
   }
 
+  onRobotAudioSourceChanged = (event) => {
+    this.props.setMainState({selectedRobotAudioSource: event.target.value});
+  }
 
+  onRobotAudioOutputChanged = (event) => {
+    this.props.setMainState({selectedRobotAudioOutput: event.target.value});
+  }
 
   render() {
 
@@ -49,8 +54,8 @@ export class Configuration extends Component {
     ];
     const mediaDevices = this.props.mediaDevices;
     if (mediaDevices) {
-      for (var i = 0; i !== mediaDevices.length; ++i) {
-        var deviceInfo = mediaDevices[i];
+      for (let i = 0; i !== mediaDevices.length; ++i) {
+        const deviceInfo = mediaDevices[i];
         if (deviceInfo.kind === 'audioinput') {
           audioInputOptions.push(
             <option key={deviceInfo.deviceId} value={deviceInfo.deviceId}>
@@ -77,9 +82,93 @@ export class Configuration extends Component {
       }
     }
 
+
+    const robotMediaDevices = this.props.robotMediaDevices;
+    let robotSettings = null;
+    if (robotMediaDevices) {
+      const robotVideoInputOptions = [
+        (<option key="none" value="">
+           *Select which video source to use on the robot*
+         </option>
+         ),
+      ];
+
+      const robotAudioInputOptions = [
+        (<option key="none" value="">
+           *Select which microphone to use on the robot*
+         </option>
+         ),
+      ];
+
+      const robotAudioOutputOptions = [
+        (<option key="none" value="">
+           *Select which audio output to use on the robot*
+         </option>
+         ),
+      ];
+
+      for (let i = 0; i !== robotMediaDevices.length; ++i) {
+        const deviceInfo = robotMediaDevices[i];
+        if (deviceInfo.kind === 'audioinput') {
+          robotAudioInputOptions.push(
+            <option key={deviceInfo.deviceId} value={deviceInfo.deviceId}>
+              {deviceInfo.label || 'microphone ' + (robotAudioInputOptions.length)}
+            </option>
+          );
+        } else if (deviceInfo.kind === 'audiooutput') {
+          robotAudioOutputOptions.push(
+            <option key={deviceInfo.deviceId} value={deviceInfo.deviceId}>
+              {deviceInfo.label || 'speaker ' + (robotAudioOutputOptions.length)}
+            </option>
+          );
+
+        } else if (deviceInfo.kind === 'videoinput') {
+          robotVideoInputOptions.push(
+            <option key={deviceInfo.deviceId} value={deviceInfo.deviceId}>
+              {deviceInfo.label || 'camera ' + (robotVideoInputOptions.length)}
+            </option>
+          );
+
+        } else {
+          console.log('Some other kind of source/device: ', deviceInfo);
+        }
+      }
+
+      robotSettings = (
+        <div>
+          <h2>Robot settings</h2>
+          <div>
+            <label>
+            Camera: &nbsp;
+            <select value={this.props.selectedRobotVideoSource || ""} onChange={this.onRobotVideoSourceChanged}>
+              {robotVideoInputOptions}
+            </select>
+            </label>
+          </div>
+          <div>
+            <label>
+            Microphone: &nbsp;
+            <select value={this.props.selectedRobotAudioSource || ""} onChange={this.onRobotAudioSourceChanged}>
+              {robotAudioInputOptions}
+            </select>
+            </label>
+          </div>
+          <div>
+            <label>
+            Audio output: &nbsp;
+            <select value={this.props.selectedRobotAudioOutput|| ""} onChange={this.onRobotAudioOutputChanged}>
+              {robotAudioOutputOptions}
+            </select>
+            </label>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div>
         <div>
+          <h2>Local settings</h2>
           <div>
             <label>
             Camera: &nbsp;
@@ -104,15 +193,9 @@ export class Configuration extends Component {
             </select>
             </label>
           </div>
-          <div>
-            <label>
-            Simulate robot: &nbsp;
-            <input type="checkbox" checked={this.props.simulateRobot} onChange={this.onSimulateRobotChanged}>
-
-            </input>
-            </label>
-          </div>
         </div>
+
+        {robotSettings}
       </div>
       );
   }

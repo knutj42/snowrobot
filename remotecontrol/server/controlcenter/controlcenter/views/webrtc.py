@@ -11,6 +11,7 @@ robot_sid = None
 # The sid of the controller webapp
 controller_sid = None
 
+
 @socketio.on('i-am-the-robot')
 def handle_i_am_the_robot():
     """This handles the initial message that the robot sends when it connects to the server."""

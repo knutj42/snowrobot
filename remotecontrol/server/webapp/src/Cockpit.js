@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 
 import './Cockpit.css';
+import { MovementControl } from './MovementControl.js';
 
 
 export class Cockpit extends Component {
@@ -21,22 +22,54 @@ export class Cockpit extends Component {
     const signalingState = this.props.signalingState;
     const okClass = "ok";
     const errorClass = "error";
+    let hasErrors = false;
 
     const statusListElements = [
               (<li key="server" className={hasConnectionToServer?okClass:errorClass} >Server</li>),
 
               ];
     if (this.props.isRobot) {
+      if (!controllerConnected) {
+        hasErrors = true;
+      }
       const peerStatus = controllerConnected ? "online" : "offline";
       statusListElements.push(<li key="controller" className={controllerConnected?okClass:errorClass}  >Controller is {peerStatus}</li>);
     } else {
+      if (!robotConnected) {
+        hasErrors = true;
+      }
       const peerStatus = robotConnected ? "online" : "offline";
       statusListElements.push(<li key="robot" className={robotConnected?okClass:errorClass}  >Robot is {peerStatus}</li>);
     }
 
-    statusListElements.push(<li key="iceConnectionState" className={iceConnectionState==="connected" || iceConnectionState==="completed"?okClass:errorClass} >iceConnectionState: {iceConnectionState || "none"}</li>);
+    const iceIsConnected = iceConnectionState==="connected" || iceConnectionState==="completed";
+    if (!iceIsConnected) {
+      hasErrors = true;
+    }
 
-    statusListElements.push(<li key="signalingState" className={signalingState==="stable"?okClass:errorClass} >signalingState: {signalingState || "none"}</li>);
+    statusListElements.push(<li key="iceConnectionState" className={iceIsConnected?okClass:errorClass} >iceConnectionState: {iceConnectionState || "none"}</li>);
+
+    const signalingStateIsOk = signalingState==="stable";
+    if (!signalingStateIsOk) {
+      hasErrors = true;
+    }
+    statusListElements.push(<li key="signalingState" className={signalingStateIsOk?okClass:errorClass} >signalingState: {signalingState || "none"}</li>);
+
+    let statusClassName = "status";
+    if (hasErrors) {
+      statusClassName += " has-errors";
+    } else {
+      statusClassName += " no-errors";
+    }
+
+    let movementControls = null;
+    if (!this.props.isRobot) {
+      movementControls = (
+        <div className="movement-control-parent">
+              <MovementControl/>
+         </div>
+      );
+    }
 
     return (
       <div className="main">
@@ -45,12 +78,15 @@ export class Cockpit extends Component {
           <video className="local-video" autoPlay ref={(video) => { this.localVideoElement = video; }} />
         </div>
 
-        <div className="status">
+        <div className={statusClassName}>
           <h3>Status:</h3>
-            <ul>
-              {statusListElements}
-            </ul>
+          <ul>
+            {statusListElements}
+          </ul>
         </div>
+
+        {movementControls}
+
       </div>
       );
   }

@@ -19,6 +19,7 @@ export class Configuration extends Component {
   }
 
   onRobotVideoSourceChanged = (event) => {
+    console.log("Setting selectedRobotVideoSource to " + event.target.value);
     this.props.setMainState({selectedRobotVideoSource: event.target.value});
   }
 
@@ -31,6 +32,7 @@ export class Configuration extends Component {
   }
 
   render() {
+    console.log("Configuration.render() this.props.selectedRobotVideoSource:" + this.props.selectedRobotVideoSource);
 
     const videoInputOptions = [
       (<option key="none" value="">
@@ -83,87 +85,90 @@ export class Configuration extends Component {
     }
 
 
-    const robotMediaDevices = this.props.robotMediaDevices;
     let robotSettings = null;
-    if (robotMediaDevices) {
-      const robotVideoInputOptions = [
-        (<option key="none" value="">
-           *Select which video source to use on the robot*
-         </option>
-         ),
-      ];
+    if (!this.props.isRobot) {
+      const robotMediaDevices = this.props.robotMediaDevices;
+      if (robotMediaDevices) {
+        const robotVideoInputOptions = [
+          (<option key="none" value="">
+             *Select which video source to use on the robot*
+           </option>
+           ),
+        ];
 
-      const robotAudioInputOptions = [
-        (<option key="none" value="">
-           *Select which microphone to use on the robot*
-         </option>
-         ),
-      ];
+        const robotAudioInputOptions = [
+          (<option key="none" value="">
+             *Select which microphone to use on the robot*
+           </option>
+           ),
+        ];
 
-      const robotAudioOutputOptions = [
-        (<option key="none" value="">
-           *Select which audio output to use on the robot*
-         </option>
-         ),
-      ];
+        const robotAudioOutputOptions = [
+          (<option key="none" value="">
+             *Select which audio output to use on the robot*
+           </option>
+           ),
+        ];
 
-      for (let i = 0; i !== robotMediaDevices.length; ++i) {
-        const deviceInfo = robotMediaDevices[i];
-        if (deviceInfo.kind === 'audioinput') {
-          robotAudioInputOptions.push(
-            <option key={deviceInfo.deviceId} value={deviceInfo.deviceId}>
-              {deviceInfo.label || 'microphone ' + (robotAudioInputOptions.length)}
-            </option>
-          );
-        } else if (deviceInfo.kind === 'audiooutput') {
-          robotAudioOutputOptions.push(
-            <option key={deviceInfo.deviceId} value={deviceInfo.deviceId}>
-              {deviceInfo.label || 'speaker ' + (robotAudioOutputOptions.length)}
-            </option>
-          );
+        for (let i = 0; i !== robotMediaDevices.length; ++i) {
+          const deviceInfo = robotMediaDevices[i];
+          if (deviceInfo.kind === 'audioinput') {
+            robotAudioInputOptions.push(
+              <option key={deviceInfo.deviceId} value={deviceInfo.deviceId}>
+                {deviceInfo.label || 'microphone ' + (robotAudioInputOptions.length)}
+              </option>
+            );
+          } else if (deviceInfo.kind === 'audiooutput') {
+            robotAudioOutputOptions.push(
+              <option key={deviceInfo.deviceId} value={deviceInfo.deviceId}>
+                {deviceInfo.label || 'speaker ' + (robotAudioOutputOptions.length)}
+              </option>
+            );
 
-        } else if (deviceInfo.kind === 'videoinput') {
-          robotVideoInputOptions.push(
-            <option key={deviceInfo.deviceId} value={deviceInfo.deviceId}>
-              {deviceInfo.label || 'camera ' + (robotVideoInputOptions.length)}
-            </option>
-          );
+          } else if (deviceInfo.kind === 'videoinput') {
+            robotVideoInputOptions.push(
+              <option key={deviceInfo.deviceId} value={deviceInfo.deviceId}>
+                {deviceInfo.label || 'camera ' + (robotVideoInputOptions.length)}
+              </option>
+            );
 
-        } else {
-          console.log('Some other kind of source/device: ', deviceInfo);
+          } else {
+            console.log('Some other kind of source/device: ', deviceInfo);
+          }
         }
-      }
 
-      robotSettings = (
-        <div>
-          <h2>Robot settings</h2>
+        robotSettings = (
           <div>
-            <label>
-            Camera: &nbsp;
-            <select value={this.props.selectedRobotVideoSource || ""} onChange={this.onRobotVideoSourceChanged}>
-              {robotVideoInputOptions}
-            </select>
-            </label>
+            <h2>Robot settings</h2>
+            <div>
+              <label>
+              Camera: &nbsp;
+              <select value={this.props.selectedRobotVideoSource || ""} onChange={this.onRobotVideoSourceChanged}>
+                {robotVideoInputOptions}
+              </select>
+              </label>
+            </div>
+            <div>
+              <label>
+              Microphone: &nbsp;
+              <select value={this.props.selectedRobotAudioSource || ""} onChange={this.onRobotAudioSourceChanged}>
+                {robotAudioInputOptions}
+              </select>
+              </label>
+            </div>
+            <div>
+              <label>
+              Audio output: &nbsp;
+              <select value={this.props.selectedRobotAudioOutput|| ""} onChange={this.onRobotAudioOutputChanged}>
+                {robotAudioOutputOptions}
+              </select>
+              </label>
+            </div>
           </div>
-          <div>
-            <label>
-            Microphone: &nbsp;
-            <select value={this.props.selectedRobotAudioSource || ""} onChange={this.onRobotAudioSourceChanged}>
-              {robotAudioInputOptions}
-            </select>
-            </label>
-          </div>
-          <div>
-            <label>
-            Audio output: &nbsp;
-            <select value={this.props.selectedRobotAudioOutput|| ""} onChange={this.onRobotAudioOutputChanged}>
-              {robotAudioOutputOptions}
-            </select>
-            </label>
-          </div>
-        </div>
-      );
+        );
+      }
     }
+
 
     return (
       <div>

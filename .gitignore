@@ -5,3 +5,4 @@ __pycache__
 *.egg
 *.log
 nginx.pid
+remotecontrol/server/controlcenter/controlcenter/static/js/

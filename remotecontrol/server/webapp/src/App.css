@@ -1,4 +1,8 @@
 
+.is-robot .nav {
+  display: none;
+}
+
 .nav ul {
     list-style-type: none;
     margin: 0;
@@ -26,4 +30,8 @@
 
 .nav li a:hover {
     background-color: #111111;
+}
+
+.local-video-canvas {
+  display: none;
 }

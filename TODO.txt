@@ -1,0 +1,30 @@
+ * Get the webrtc stuff to work reliably with the app on an actual phone.
+
+ * Add buttons on the "Cockpit" page on the controller for selecting robot videosource, audiosource and audiooutput.
+
+ * Hide the menubar on the robot webpage.
+
+ * Make the webpage responsive. Both the robot webpage and the controller should work on a phone with all combinations
+   of landscape and portrait mode (the video aspect ratio from the phone changes when the orientation changes).
+
+ * Add support for sending robot movement commands from the controller via the arrow keys on the keyboard and
+   by holding and dragging a gui-widget. When using the arrow keys, the gui-widget should move accordingly on
+   its own.
+   * The commands should be sent via the datachannel twice a second (or at once when a value is changed).
+   * The robot-webpage should display values of the last received movement command
+   * The robol-webpage should call a method on the injected java-object (if the object is present).
+
+
+ * Get the arduino ide up and running for the microcontroller.
+
+ * Hook a battery and two lego motors up to the microcontroller. Make a sketch that make the motors run.
+
+ * Add bluetooth support in the app and get it to connect to the microcontroller.
+
+ * Add support for selecting multiple cameras on the robot.
+
+ * Support for OpenId connect has been implemented, but we don't actually use it yet. We must protect
+   all the urls with proper security. The robot is probably a special case, though. We have to figure
+   out how to deal with that.
+
+

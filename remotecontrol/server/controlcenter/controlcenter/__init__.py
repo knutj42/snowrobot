@@ -43,6 +43,7 @@ def setup_openid_connect():
                 e,
                 openid_configuration_response.text)))
 
+    userinfo_endpoint = openid_configuration["userinfo_endpoint"]
     end_session_endpoint = openid_configuration.get("end_session_endpoint")
 
     oauth_remote_app = oauth.remote_app(
@@ -56,9 +57,9 @@ def setup_openid_connect():
         access_token_url=openid_configuration["token_endpoint"],
         authorize_url=openid_configuration["authorization_endpoint"],
     )
-    return oauth_remote_app
+    return oauth_remote_app, userinfo_endpoint, end_session_endpoint
 
-
-oauth_remote_app = setup_openid_connect()
+#oauth_remote_app, userinfo_endpoint, end_session_endpoint = setup_openid_connect()
+oauth_remote_app, userinfo_endpoint, end_session_endpoint = None, None, None
 
 import controlcenter.views

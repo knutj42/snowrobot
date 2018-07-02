@@ -1,13 +1,25 @@
+:root {
+  --video-width: 75%;
+  --movement-controls-width: calc(100% - var(--video-width));
+}
+
+
 .main {
   display: flex;
 }
 
 .main .video {
-  width: 50%;
   position: relative;
-  padding: 1em;
 }
 
+.is-controller .main .video {
+  width: var(--video-width);
+}
+
+.is-robot .main .video {
+  width: 100%;
+  position: relative;
+}
 
 
 .main .video .local-video {
@@ -16,24 +28,53 @@
   right: 2em;
   bottom: 2em;
   border-style: solid;
-  border-width: 2px;
+  border-width: 1px;
+  border-color: gray;
 }
 
 
 .main .video .remote-video {
   width: 100%;
   border-style: solid;
-  border-width: 2px;
+  border-width: 1px;
+  border-color: gray;
 }
-
-
 
 .main .status {
-  width: 50%;
+  position: fixed;
 }
 
-.status ul {
+.main .status.no-errors {
+  width: 1em;
+  height: 1em;
+  overflow: hidden;
+  background-color: green;
+}
+
+.main .status.no-errors:hover,
+.main .status.has-errors {
+  width: 20em;
+  height: auto;
+  background-color: white;
+}
+
+
+.main .status h3 {
+  margin: 0;
+}
+
+.main .status.no-errors h3 {
+  color: green;
+}
+
+.main .status.has-errors h3 {
+  color: red;
+}
+
+.main .status ul {
   list-style-type: none;
+  margin-top: 0;
+  padding-left: 0;
 }
 
 .status .ok {
@@ -67,4 +108,14 @@
   margin-right: 0.3em;
   text-align: center;
   color: #red;
+}
+
+
+.movement-control-parent {
+  width: var(--movement-controls-width);
+}
+
+.movement-controls-parent > div {
+  padding-bottom: 75%;
+  background: gold;
 }

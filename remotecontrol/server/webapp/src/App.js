@@ -47,6 +47,10 @@ class App extends Component {
       selectedAudioSource,
       selectedAudioOutput,
 
+      selectedRobotVideoSource: null,
+      selectedRobotAudioSource: null,
+      selectedRobotAudioOutput: null,
+
       hasSentIAmMsg: false,
       localVideoSteam: null,
       remoteVideoStream: null,
@@ -140,7 +144,7 @@ class App extends Component {
           }
         );
       }).catch((error) => {
-        console.log('Failed to call peerPonnection.setRemoteDescription(): ' + error.toString());
+        console.log('Failed to call peerConnection.setRemoteDescription(): ' + error.toString());
       });
     });
 
@@ -152,7 +156,7 @@ class App extends Component {
         this.state.peerConnection.onnegotiationneeded = this.handleNegotiationNeeded;
 
       }).catch((error) => {
-        console.log('Failed to call peerPonnection.setRemoteDescription(): ' + error.toString());
+        console.log('Failed to call peerConnection.setRemoteDescription(): ' + error.toString());
       });
     });
 
@@ -180,11 +184,14 @@ class App extends Component {
   }
 
   sendRobotDeviceInfosMessageIfNeeded = () => {
-    if (this.state.isRobot && this.state.dataChannel && this.state.mediaDevices) {
+    if (this.state.isRobot && this.state.dataChannel && this.state.dataChannelIsOpen && this.state.mediaDevices) {
       console.log("sendRobotDeviceInfosMessageIfNeeded() sending message.");
       this.state.dataChannel.send(JSON.stringify({
         "type": "robot-mediadevices",
-        "mediadevices": this.state.mediaDevices
+        "mediadevices": this.state.mediaDevices,
+        "selectedVideoSource": this.state.selectedVideoSource,
+        "selectedAudioSource": this.state.selectedAudioSource,
+        "selectedAudioOutput": this.state.selectedAudioOutput,
       }));
     } else {
       console.log("sendRobotDeviceInfosMessageIfNeeded() running, but not sending message.");
@@ -233,8 +240,12 @@ class App extends Component {
           maxRetransmitTime: 3000, // in milliseconds
         };
         console.log("Creating a datachannel");
-        const dataChannel =
-          pc.createDataChannel("robotcontrol", dataChannelOptions);
+        const dataChannel = pc.createDataChannel("robotcontrol", dataChannelOptions);
+
+        this.setState({
+          dataChannel,
+          dataChannelIsOpen: false,
+        });
 
         dataChannel.onerror = function (error) {
           console.log("Data Channel Error:", error);
@@ -246,20 +257,26 @@ class App extends Component {
           message = JSON.parse(message);
           if (message.type === "robot-mediadevices") {
             console.info("Got a robot-mediadevices message: " + JSON.stringify(message.mediadevices));
-            thisthis.setState({robotMediaDevices: message.mediadevices});
+            thisthis.setState({
+              robotMediaDevices: message.mediadevices,
+              selectedRobotVideoSource: message.selectedVideoSource,
+              selectedRobotAudioSource: message.selectedAudioSource,
+              selectedRobotAudioOutput: message.selectedAudioOutput,
+            });
           } else {
             console.error("Got an unknown dataChannel message:" + JSON.stringify(message));
           }
         };
 
         dataChannel.onopen = function () {
-          dataChannel.send("Hello World from the controller!");
+          console.log("Got a dataChannel 'onopen' event.");
+          thisthis.setState({dataChannelIsOpen: true});
         };
 
         dataChannel.onclose = function () {
-          console.log("The Data Channel is Closed");
+          console.log("Got a dataChannel 'onclose' event.");
+          thisthis.setState({dataChannelIsOpen: false});
         };
-        this.setState({dataChannel});
       }
       pc.ondatachannel = this.onDataChannel;
 
@@ -295,6 +312,10 @@ class App extends Component {
     this.socket.open();
   }
 
+
+  /*
+   * This is called on the robot when the controller has created a datachannel.
+   */
   onDataChannel = (event) => {
     const thisthis = this;
     const dataChannel = event.channel;
@@ -305,29 +326,46 @@ class App extends Component {
       return;
     }
 
+    this.setState({
+      dataChannel,
+      dataChannelIsOpen: true,
+    });
+
     dataChannel.onerror = function (error) {
       console.log("Data Channel Error:", error);
-
     };
 
     dataChannel.onmessage = function (event) {
-      console.log("Got Data Channel Message:", event.data);
+      let message = event.data;
+      console.log("Got Data Channel Message:", message);
+      message = JSON.parse(message);
+      if (message.type === "selected-video-source") {
+        console.info("Got a selected-video-source message: " + JSON.stringify(message.deviceId));
+        thisthis.setState({selectedVideoSource: message.deviceId});
+      } else {
+        console.error("Got an unknown dataChannel message:" + JSON.stringify(message));
+      }
+
     };
 
     dataChannel.onopen = function () {
-      thisthis.sendRobotDeviceInfosMessageIfNeeded();
+      console.log("Got a dataChannel 'onopen' event.");
+      thisthis.setState({
+        dataChannelIsOpen: true,
+      }, thisthis.sendRobotDeviceInfosMessageIfNeeded);
     };
 
     dataChannel.onclose = function () {
-      console.log("The Data Channel is Closed");
+      console.log("Got a dataChannel 'onclose' event.");
+      thisthis.setState({
+        dataChannelIsOpen: false,
+      });
     };
-
-    this.setState({dataChannel})
   }
 
 
   createOffer = () => {
-    console.log("App.createOffeR() running");
+    console.log("App.createOffer() running");
     this.state.peerConnection.createOffer(
       (sessionDescription) => {
         this.state.peerConnection.setLocalDescription(sessionDescription);
@@ -397,12 +435,6 @@ class App extends Component {
       robotMediaDevices: [],
     };
 
-    if (this.state.isRobot) {
-      newState.selectedVideoSource = null;
-      newState.selectedAudioSource = null;
-      newState.selectedAudioOutput = null;
-    }
-
     this.setState(newState);
   }
 
@@ -468,7 +500,7 @@ class App extends Component {
       setInterval(() => {
           ctx.font = "25px Arial";
           const d = new Date();
-          let n = d.toISOString();
+          let n = (d.getTime() / 1000).toFixed(0);
 
           ctx.fillStyle ="#FFFFFF";
           ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -498,9 +530,41 @@ class App extends Component {
       this.changeLocalAudioOrVideoSourceIfNeeded();
       return;
     }
+
+    if (prevState.selectedRobotVideoSource !== this.state.selectedRobotVideoSource) {
+      console.log("Updating robot video source.");
+      if (this.state.dataChannel) {
+        this.state.dataChannel.send(JSON.stringify({
+          "type": "selected-video-source",
+          "deviceId": this.state.selectedRobotVideoSource,
+        }));
+      }
+    }
+
+    if (prevState.selectedRobotAudioSource !== this.state.selectedRobotAudioSource) {
+      console.log("Updating robot audio source.");
+      if (this.state.dataChannel) {
+        this.state.dataChannel.send(JSON.stringify({
+          "type": "selected-audio-source",
+          "deviceId": this.state.selectedRobotAudioSource,
+        }));
+      }
+    }
+
+    if (prevState.selectedRobotAudioOutput !== this.state.selectedRobotAudioOutput) {
+      console.log("Updating robot audio output.");
+      if (this.state.dataChannel) {
+        this.state.dataChannel.send(JSON.stringify({
+          "type": "selected-audio-output",
+          "deviceId": this.state.selectedRobotAudioOutput,
+        }));
+      }
+    }
+
   }
 
   setMainState = (updatedState) => {
+    console.log("setMainState() running. updatedState: " + JSON.stringify(updatedState));
     this.setState(updatedState);
   }
 
@@ -574,26 +638,23 @@ class App extends Component {
   render() {
     return (
       <Router>
-        <div>
+        <div className={this.state.isRobot?'is-robot':'is-controller'}>
           <div>
             <div className="nav">
               <ul>
                 <li>
-                  <NavLink exact to="/">Cockpit</NavLink>
+                  <NavLink exact to={this.state.isRobot?'/?isRobot=true':'/'}>Cockpit</NavLink>
                 </li>
                 <li>
-                  <NavLink to="/config">Configuration</NavLink>
+                  <NavLink to={this.state.isRobot?'/config?isRobot=true':'/config'}>Configuration</NavLink>
                 </li>
               </ul>
             </div>
-
-            <hr />
 
             <Route exact path="/" render={()=> <Cockpit
               localVideoSteam={this.state.localVideoSteam}
               remoteVideoStream={this.state.remoteVideoStream}
               connectedToServer={this.state.connectedToServer}
-
 
               selectedVideoSource={this.state.selectedVideoSource}
               selectedAudioSource={this.state.selectedAudioSource}
@@ -618,6 +679,9 @@ class App extends Component {
                                                  selectedVideoSource={this.state.selectedVideoSource}
                                                  selectedAudioSource={this.state.selectedAudioSource}
                                                  selectedAudioOutput={this.state.selectedAudioOutput}
+                                                 selectedRobotVideoSource={this.state.selectedRobotVideoSource}
+                                                 selectedRobotAudioSource={this.state.selectedRobotAudioSource}
+                                                 selectedRobotAudioOutput={this.state.selectedRobotAudioOutput}
                                                  isRobot={this.state.isRobot}
                                                  iceConnectionState={this.state.iceConnectionState}
                                                  setMainState={this.setMainState}
@@ -626,11 +690,7 @@ class App extends Component {
                                                 />
 
           </div>
-          <div>
-            <h3>Canvas that is used when no camera is selected:</h3>
-            <canvas style={{borderStyle:"solid"}} className="local-video-canvas" ref={(canvas) => { this.localVideoCanvasElement = canvas; }} />
-
-          </div>
+          <canvas style={{borderStyle:"solid"}} className="local-video-canvas" ref={(canvas) => { this.localVideoCanvasElement = canvas; }} />
         </div>
       </Router>
     );

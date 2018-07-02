@@ -1,97 +1,115 @@
-
 import logging
+import pprint
+import textwrap
+import urllib.parse
 
 import flask
-from werkzeug.exceptions import BadRequest
+import flask_oauthlib.client
+import jwt as jwt
+import requests
+from werkzeug.exceptions import BadRequest, Forbidden, ServiceUnavailable
 
-from . import viewutils
-from .pyramid_to_flask_conversion_utils import FlaskRequestWrapper
-from .. import config_module
-from .. import models
+from .. import app, oauth_remote_app, userinfo_endpoint, end_session_endpoint
 
 log = logging.getLogger(__name__)
 
 
+@app.route('/login')
+def login():
+    """This is called when a user wants to authenticate. This will redirect the user to the authentication
+    provider. Once the user has logged it, they will be redirected back to this site, and the login_callback()
+    function will be called.
+    """
+    flask.session.clear()
+    callback_url = urllib.parse.urljoin(flask.request.host_url, "/login_callback")
+    response = oauth_remote_app.authorize(callback=callback_url)
+    return response
+
+
+@app.route('/login_callback')
+def login_callback():
+    """This is called when a user has attempted to authenticate with this provider and
+    the provider has redirected the user back to the our site (the request url will
+    contain the results of the authentication-attempt)."""
+    request = flask.request
+
+    try:
+        resp = oauth_remote_app.authorized_response()
+    except flask_oauthlib.client.OAuthException as e:
+        raise BadRequest("Login failed, please try again.")
+
+    if resp is None:
+        error = request.args.get('error')
+        error_description = request.args.get('error_description')
+        if error is None and error_description is None:
+            # this usually means that the user cancelled the login, so just redirect to the front page
+            return flask.redirect(flask.request.host_url)
+
+        raise Forbidden('Access denied: error=%s error_description=%s' % (
+            request.args.get('error'),
+            request.args.get('error_description')
+        ))
+
+    id_token_payload = jwt.decode(resp["id_token"], verify=False, leeway=3600,
+                                  options={"verify_aud": False})
+
+    # remember the id_token, since this is required by the logout() method.
+    flask.session["authentication_provider_id_token"] = resp["id_token"]
+
+    access_token = resp.get('access_token')
+    nonce = id_token_payload.get("nonce")
+    if nonce is not None:
+        # The id_token contains a nonce, so check if it is still valid.
+        expected_nonce = flask.session.pop("authentication_provider_nonce", None)
+        if nonce != expected_nonce:
+            raise BadRequest("Login failed (invalid nonce), please try again.")
+
+    # Ee use the user-info endpoint to get additional information about
+    # the user.
+    headers = {'authorization': 'Bearer ' + access_token}
+    userinfo_endpoint_response = requests.get(userinfo_endpoint, headers=headers)
+    if userinfo_endpoint_response.status_code != 200:
+        log.error("The authentication attempt failed, since we failed to call the userinfo endpoint at '%s'.\n"
+                  "  resp.status_code: %s\n"
+                  "  resp.text: %s",
+                  userinfo_endpoint, userinfo_endpoint_response.status_code, userinfo_endpoint_response.text)
+        raise ServiceUnavailable("The authentication attempt failed. Please try again later.")
+    user_info = userinfo_endpoint_response.json()
+
+    session = flask.session
+    session["is_authenticated"] = True
+    session["user_id"] = user_info["sub"]
+    session["user_info"] = user_info
+
+    log.info("A user logged in. user_info:\n%s" % (
+        textwrap.indent(pprint.pformat(user_info), prefix="    ")
+    ))
+    # All went well, so redirect to the frontpage
+    return flask.redirect(flask.request.host_url)
+
+
+@app.route('/logout')
 def logout():
     """
     This is called when the user has clicked the "logout"-button
     """
-    config = config_module.get_config()
-    provider_id = flask.session.get("authentication_provider_id")
-    if provider_id:
-        # the user was authenticated with some external authentication provider, so we must tell the
-        # provider that the user wants to log out.
-        provider = config.get_authentication_provider(provider_id)
-        if provider is not None:
-            response = provider.logout()
-            if response is not None:
-                flask.session.clear()
-                return response
+    user_info = flask.session.get("user_info")
+    if user_info:
+        log.info("A user logged logged out. user_info:\n%s" % (
+            textwrap.indent(pprint.pformat(user_info), prefix="    ")
+        ))
 
     flask.session.clear()
-    pyramid_request = FlaskRequestWrapper()
-    application_url = viewutils.get_real_virtualhost_aware_url(pyramid_request, pyramid_request.application_url)
-    return flask.redirect(application_url)
-
-
-def login(provider_id):
-    flask.session.clear()
-
-    config = config_module.get_config()
-    provider = config.get_authentication_provider(provider_id)
-    if provider is None:
-        raise BadRequest("The authentication provider '%s' does not exist!" % (provider_id,))
-
-    response = provider.authorize()
-
-    return response
-
-
-def login_callback(provider_id):
-    config = config_module.get_config()
-    provider = config.get_authentication_provider(provider_id)
-    if provider is None:
-        raise BadRequest("The authentication provider '%s' does not exist!" % (provider_id,))
-
-    user_info = provider.authorized_response()
-    session = flask.session
-    session['authentication_provider_id'] = provider_id
-    session["is_authenticated"] = True
-    session["user_id"] = user_info["user_id"]
-
-    userobject = None
-    psis = None
-    email = ""
-    if "email" in user_info:
-        # This is an email-based authentication provider, where the email-adress is the user_id, and
-        # we can do a lookup in the solr-data based on that email address.
-        if "email_verified" not in user_info and not provider.allow_unverified_email:
-            raise AssertionError(
-                ("The user_info from the authentication provider '%s' didn't contain a 'email_verified' "
-                 "property and the 'allow_unverified_email'-property is 'False'! user_info.keys(): %s") % (
-                    provider_id, list(user_info.keys())
-                ))
-        if user_info.get("email_verified") or provider.allow_unverified_email:
-            email = user_info.get("email")
-            email = email.strip()
-        if email:
-            userobject, psis = models.perform_email_search(email)
-            session['email'] = email
-            session["user_id"] = email
+    if end_session_endpoint:
+        # the authentication provider supports logout, so redirect to it.
+        urlparams = {
+            "post_logout_redirect_uri": flask.request.host_url,
+        }
+        id_token_hint = flask.session.get("authentication_provider_id_token")
+        if id_token_hint:
+            urlparams["id_token_hint"] = id_token_hint
+        logout_url = end_session_endpoint + "?" + urllib.parse.urlencode(urlparams)
+        return flask.redirect(logout_url)
     else:
-        # This is not an email-based auth provider (it could be for instance BankID), so we don't have
-        # a way to look up the user's data in solr. Currently, we only use such auth providers in the
-        # gdpr platform, where the data in solr is tied to a data accessrequest instead of directly to
-        # the user. If we want to be able to look up the user-data in solr directly based on the
-        # user_id, we need to introduce a new "USER_ID_FIELDS" config-setting and related search-functionality
-        # (similar to the EMAIL_FIELDS config-setting works for email-based users today).
-        pass
-
-    if psis and len(psis) > 0:
-        session['userobject'] = userobject
-        session['psis'] = psis
-
-    # All went well, so redirect to the frontpage
-    pyramid_request = FlaskRequestWrapper()
-    application_url = viewutils.get_real_virtualhost_aware_url(pyramid_request, pyramid_request.application_url)
-    return flask.redirect(application_url)
+        # The authentication provider doesn't support logout, so just redirect to the frontpage
+        return flask.redirect(flask.request.host_url)

@@ -6,11 +6,14 @@ import './MovementControl.css';
 export class MovementControl extends Component {
   constructor(props) {
     super(props);
+    this.sendMovementMessageTimer = null;
     this.state = {
       dragging: false,
       dragStartPos: null,
       movementX: 0,
       movementY: 0,
+      height: 0,
+      width: 0,
     };
   }
 
@@ -26,11 +29,14 @@ export class MovementControl extends Component {
       document.removeEventListener('mousemove', this.onMouseMove)
       document.removeEventListener('mouseup', this.onMouseUp)
     }
+    this.updateSize();
   }
 
   // calculate relative position to the mouse and set dragging=true
   onMouseDown = (e) =>  {
     // only left mouse button
+    console.log("onMouseDown() running. e.button:" + e.button);
+
     if (e.button !== 0) return
 
     this.setState({
@@ -40,44 +46,112 @@ export class MovementControl extends Component {
         y: e.pageY
       }
     })
+
+    // Send a movementmessage a couple a times a second even if no movement has been made,
+    // so that the robot knows that the  controller is alive.
+    this.sendMovementMessageTimer = setInterval(this.sendMovementMessage, 500);
+
     e.stopPropagation()
     e.preventDefault()
   }
 
   onMouseUp = (e) =>  {
+    console.log("onMouseUp() running.");
     this.setState({
       dragging: false,
       dragStartPos: null,
       movementX: 0,
       movementY:0,
-    });
+      throttle:0,
+      steering:0,
+    }, this.sendMovementMessage);
+
+    clearInterval(this.sendMovementMessageTimer);
+    this.sendMovementMessageTimer = null;
+
+
     e.stopPropagation()
     e.preventDefault()
   }
 
   onMouseMove = (e) => {
+    console.log("onMouseMove() running.");
     if (!this.state.dragging) return
-    const movementX = e.pageX - this.state.dragStartPos.x;
-    const movementY = e.pageY - this.state.dragStartPos.y;
-    this.setState({movementX, movementY});
+    let movementX = e.pageX - this.state.dragStartPos.x;
+    let movementY = e.pageY - this.state.dragStartPos.y;
+    const maxXMovement = (this.state.mainWidth / 2) - (this.state.draggerWidth / 2);
+    const maxYMovement = (this.state.mainHeight / 2) - (this.state.draggerHeight / 2);
+    movementX = Math.max(-maxXMovement, Math.min(movementX, maxXMovement));
+    movementY = Math.max(-maxYMovement, Math.min(movementY, maxYMovement));
+
+    const throttle = -movementY / maxYMovement;
+    const steering = movementX / maxXMovement;
+    //console.log("throttle:" + throttle + "  steering:" + steering);
+    this.setState({throttle, steering, movementX, movementY}, this.sendMovementMessage);
     e.stopPropagation()
     e.preventDefault()
   }
 
+  sendMovementMessage = () => {
+    if (this.props.dataChannelIsOpen) {
+      if (this.props.dataChannel.bufferedAmount > 1000) {
+        console.log("Skipping movement message, since the datachannel seems busy. dataChannel.bufferedAmount:" + this.props.dataChannel.bufferedAmount);
+      } else {
+        console.log("Sending movement message. dataChannel.bufferedAmount:" + this.props.dataChannel.bufferedAmount);
+
+        this.props.dataChannel.send(JSON.stringify({
+          "type": "movement-control",
+          "steering": this.state.steering,
+          "throttle": this.state.throttle,
+        }));
+
+      }
+    } else {
+        console.log("Skipping movement message, since the datachannel isn't open");
+    }
+  }
+
+  componentDidMount = () =>  {
+    this.updateSize();
+  }
+
+  updateSize = () => {
+    if (this.mainElement) {
+      const newMainHeight = this.mainElement.clientHeight;
+      const newMainWidth = this.mainElement.clientWidth;
+      if (newMainHeight !== this.state.mainHeight || newMainWidth !== this.state.mainWidth) {
+        this.setState({
+          mainHeight: newMainHeight,
+          mainWidth: newMainWidth,
+        });
+      }
+    }
+    if (this.draggerElement) {
+      const newDraggerHeight = this.draggerElement.clientHeight;
+      const newDraggerWidth = this.draggerElement.clientWidth;
+      if (newDraggerHeight !== this.state.draggerHeight || newDraggerWidth !== this.state.draggerWidth) {
+        this.setState({
+          draggerHeight: newDraggerHeight,
+          draggerWidth: newDraggerWidth,
+        });
+      }
+    }
+  }
+
   render = () => {
     return (
-      <div className="movement-control">
-      <div className="control-area">
-        <div className="dragger-parent">
-          <div className="dragger"
-            onMouseDown={this.onMouseDown}
-            style={{
-              position: 'relative',
-              top: this.state.movementY,
-              left: this.state.movementX,
-            }}
-          >
-          </div>
+      <div ref={(mainElement) => this.mainElement = mainElement} className="movement-control">
+        <div className="control-area">
+          <div className="dragger-parent">
+            <div ref={(draggerElement) => this.draggerElement = draggerElement}  className="dragger"
+              onMouseDown={this.onMouseDown}
+              style={{
+                position: 'relative',
+                top: this.state.movementY,
+                left: this.state.movementX,
+              }}
+            >
+            </div>
           </div>
         </div>
       </div>

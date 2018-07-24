@@ -1,8 +1,0 @@
-
-
-* The server should support multiple different robots (maybe use a different room for each robot-name?)
-
-  The needs to handle disconnect/reconnects and changing video sources robustly.
-
-
-* use localstorage to remember the user's camera selection

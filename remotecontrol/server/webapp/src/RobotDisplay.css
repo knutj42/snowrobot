@@ -4,12 +4,7 @@
 * {box-sizing: border-box;}
 
 
-.nav {
-  grid-row-start: 1;
-  grid-row-end: 2;
-}
-
-.cockpit {
+.robot-display {
   display: grid;
   grid-template-columns: 20% 20% 20% 20% 20%;
   grid-template-rows: 20% 20% 20% 20% 20%;
@@ -21,73 +16,56 @@
   align-items: stretch;
 }
 
-.cockpit .remote-video {
+.robot-display .remote-video {
   grid-column-start: 1;
-  grid-column-end: 4;
+  grid-column-end: -1;
   grid-row-start: 1;
-  grid-row-end: -2;
+  grid-row-end: -1;
 }
 
-.cockpit .local-video {
-  grid-column-start: 3;
-  grid-column-end: 4;
-  grid-row-start: 4;
-  grid-row-end: 5;
+.robot-display .local-video {
+  grid-column-start: -2;
+  grid-column-end: -1;
+  grid-row-start: -3;
+  grid-row-end: -1;
   z-index: 100;
 }
 
 
 
-.cockpit .movement-control {
-  grid-column-start: 4;
-  grid-column-end: -1;
-  grid-row-start: 1;
-  grid-row-end: -1;
 
-  border-style: none;
-  border-width: 10px;
-  border-color: brown;
-}
-
-.cockpit .dashboard {
-  grid-column-start: 1;
-  grid-column-end: 4;
-  grid-row-start: -2;
-  grid-row-end: -1;
-}
-
-.cockpit .status {
+.robot-display .status {
   position: fixed;
 }
 
-.cockpit .status.no-errors {
+.robot-display .status.no-errors {
   width: 1em;
   height: 1em;
   overflow: hidden;
   background-color: green;
 }
 
-.cockpit .status.no-errors:hover,
-.cockpit .status.has-errors {
+.robot-display .status.no-errors:hover,
+.robot-display .status.has-errors {
   width: 20em;
   height: auto;
   background-color: white;
 }
 
 
-.cockpit .status h3 {
+.robot-display .status h3 {
   margin: 0;
 }
 
-.cockpit .status.no-errors h3 {
+.robot-display .status.no-errors h3 {
   color: green;
 }
 
-.cockpit .status.has-errors h3 {
+.robot-display .status.has-errors h3 {
   color: red;
 }
 
-.cockpit .status ul {
+.robot-display .status ul {
   list-style-type: none;
   margin-top: 0;
   padding-left: 0;

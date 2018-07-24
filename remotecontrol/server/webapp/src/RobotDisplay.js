@@ -1,11 +1,9 @@
 import React, { Component } from 'react';
 
-import './Cockpit.css';
-import { MovementControl } from './MovementControl.js';
-import { Dashboard } from './Dashboard.js';
+import './RobotDisplay.css';
 
 
-export class Cockpit extends Component {
+export class RobotDisplay extends Component {
   constructor(props) {
     super(props);
     this.localVideoElement = null;
@@ -64,8 +62,7 @@ export class Cockpit extends Component {
     }
 
     return (
-      <div className="cockpit">
-
+      <div className="robot-display">
         <video className="remote-video"  autoPlay ref={(video) => { this.remoteVideoElement = video; }} />
         <video className="local-video" autoPlay ref={(video) => { this.localVideoElement = video; }} />
 
@@ -75,28 +72,6 @@ export class Cockpit extends Component {
             {statusListElements}
           </ul>
         </div>
-
-        <MovementControl
-            dataChannel={this.props.dataChannel}
-            dataChannelIsOpen={this.props.dataChannelIsOpen}
-        />
-
-        <Dashboard
-          dataChannel={this.props.dataChannel}
-          dataChannelIsOpen={this.props.dataChannelIsOpen}
-          mediaDevices={this.props.mediaDevices}
-          selectedVideoSource={this.props.selectedVideoSource}
-          selectedAudioSource={this.props.selectedAudioSource}
-          selectedAudioOutput={this.props.selectedAudioOutput}
-
-          robotMediaDevices={this.props.robotMediaDevices}
-          selectedRobotVideoSource={this.props.selectedRobotVideoSource}
-          selectedRobotAudioSource={this.props.selectedRobotAudioSource}
-          selectedRobotAudioOutput={this.props.selectedRobotAudioOutput}
-
-          setMainState={this.props.setMainState}
-        />
-
 
       </div>
       );
@@ -125,8 +100,6 @@ export class Cockpit extends Component {
       console.log("Setting this.remoteVideoElement.srcObject to " + this.props.remoteVideoStream);
       this.remoteVideoElement.srcObject = this.props.remoteVideoStream;
     }
-
-
   }
 
 }

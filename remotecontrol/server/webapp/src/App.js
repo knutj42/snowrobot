@@ -1,9 +1,10 @@
 import React, { Component } from 'react';
-import { BrowserRouter as Router, Route, NavLink} from "react-router-dom";
+import { BrowserRouter as Router, Route} from "react-router-dom";
 import io from 'socket.io-client';
 import './App.css';
-import { Configuration} from './Configuration.js';
+//import { Configuration} from './Configuration.js';
 import { Cockpit } from './Cockpit.js';
+import { RobotDisplay} from './RobotDisplay.js';
 
 
 function handleGetUserMediaError(error) {
@@ -71,6 +72,11 @@ class App extends Component {
       signalingState: null,
       peerConnection: null,
     };
+
+    if (isRobot) {
+      this.state.steering = 0;
+      this.state.throttle = 0;
+    }
 
     const socket = io.connect(null,
       {
@@ -342,7 +348,14 @@ class App extends Component {
       if (message.type === "selected-video-source") {
         console.info("Got a selected-video-source message: " + JSON.stringify(message.deviceId));
         thisthis.setState({selectedVideoSource: message.deviceId});
+      } else if (message.type === "movement-control") {
+        console.info("Got a movement-control message: " + JSON.stringify(message));
+        thisthis.setState({
+          steering: message.steering,
+          throttle: message.throttle,
+          });
       } else {
+
         console.error("Got an unknown dataChannel message:" + JSON.stringify(message));
       }
 
@@ -497,24 +510,35 @@ class App extends Component {
       this.localVideoStreamFromCanvas = canvas.captureStream(25);
       console.log("this.localVideoStreamFromCanvas:" + this.localVideoStreamFromCanvas.toString());
       this.changeLocalAudioOrVideoSourceIfNeeded();
+      let canvasBackgroundColour;
+      if (this.state.isRobot) {
+        canvasBackgroundColour = "#BFBFBF";
+      } else {
+        canvasBackgroundColour = "#5F5F5F";
+      }
+
       setInterval(() => {
-          ctx.font = "25px Arial";
+          ctx.font = "150px Arial";
           const d = new Date();
           let n = (d.getTime() / 1000).toFixed(0);
 
-          ctx.fillStyle ="#FFFFFF";
+          ctx.fillStyle =canvasBackgroundColour;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle ="#00FFFF";
+
+          ctx.fillStyle ="#000000";
 
           if (this.state.isRobot) {
-            ctx.fillText("Robot time:", 5, 30);
+            ctx.fillText("Robot time:", 5, 150);
+            ctx.fillText(n, 5, 300);
+            ctx.fillText("steering:" + this.state.steering, 30, 500);
+            ctx.fillText("throttle:" + this.state.throttle, 30, 700);
           } else {
-            ctx.fillText("Controller time:",5,30);
+            ctx.fillText("Controller time:", 5, 150);
+            ctx.fillText(n, 5, 300);
           }
 
-          ctx.fillText(n, 5, 60);
 
-        }, 1000
+        }, 100
       )
     }, 100);
 
@@ -635,15 +659,12 @@ class App extends Component {
     }*/
   }
 
-  render() {
-    return (
-      <Router>
-        <div className={this.state.isRobot?'is-robot':'is-controller'}>
-          <div>
+
+/*
             <div className="nav">
               <ul>
                 <li>
-                  <NavLink exact to={this.state.isRobot?'/?isRobot=true':'/'}>Cockpit</NavLink>
+                  <NavLink exact to={this.state.isRobot?'/?isRobot=true':'/'}>{this.state.isRobot ? 'RobotDisplay' : 'Cockpit'}</NavLink>
                 </li>
                 <li>
                   <NavLink to={this.state.isRobot?'/config?isRobot=true':'/config'}>Configuration</NavLink>
@@ -651,28 +672,7 @@ class App extends Component {
               </ul>
             </div>
 
-            <Route exact path="/" render={()=> <Cockpit
-              localVideoSteam={this.state.localVideoSteam}
-              remoteVideoStream={this.state.remoteVideoStream}
-              connectedToServer={this.state.connectedToServer}
 
-              selectedVideoSource={this.state.selectedVideoSource}
-              selectedAudioSource={this.state.selectedAudioSource}
-              selectedAudioOutput={this.state.selectedAudioOutput}
-
-              selectedRobotVideoSource={this.state.selectedRobotVideoSource}
-              selectedRobotAudioSource={this.state.selectedRobotAudioSource}
-              selectedRobotAudioOutput={this.state.selectedRobotAudioOutput}
-
-              isRobot={this.state.isRobot}
-
-              robotConnected={this.state.robotConnected}
-              controllerConnected={this.state.controllerConnected}
-              iceConnectionState={this.state.iceConnectionState}
-              signalingState={this.state.signalingState}
-
-              />
-            } />
             <Route path="/config" render={()=><Configuration
                                                  mediaDevices={this.state.mediaDevices}
                                                  robotMediaDevices={this.state.robotMediaDevices}
@@ -689,8 +689,71 @@ class App extends Component {
 
                                                 />
 
-          </div>
-          <canvas style={{borderStyle:"solid"}} className="local-video-canvas" ref={(canvas) => { this.localVideoCanvasElement = canvas; }} />
+*/
+
+  render() {
+    const localVideoPortraitMode = false; //this.state.isRobot
+    return (
+      <Router>
+        <div className={this.state.isRobot?'is-robot':'is-controller'}>
+            <Route exact path="/"
+              render={()=> {
+                if(this.state.isRobot) {
+                  return (<RobotDisplay
+                  localVideoSteam={this.state.localVideoSteam}
+                  remoteVideoStream={this.state.remoteVideoStream}
+                  connectedToServer={this.state.connectedToServer}
+
+                  selectedVideoSource={this.state.selectedVideoSource}
+                  selectedAudioSource={this.state.selectedAudioSource}
+                  selectedAudioOutput={this.state.selectedAudioOutput}
+
+                  isRobot={this.state.isRobot}
+
+                  robotConnected={this.state.robotConnected}
+                  controllerConnected={this.state.controllerConnected}
+                  iceConnectionState={this.state.iceConnectionState}
+                  signalingState={this.state.signalingState}
+
+                  dataChannel={this.state.dataChannel}
+                  dataChannelIsOpen={this.state.dataChannelIsOpen}
+
+                  steering={this.state.steering}
+                  throttle={this.state.throttle}
+                  />);
+                } else {
+                  return (<Cockpit
+                  setMainState={this.setMainState}
+                  localVideoSteam={this.state.localVideoSteam}
+                  remoteVideoStream={this.state.remoteVideoStream}
+                  connectedToServer={this.state.connectedToServer}
+
+                  mediaDevices={this.state.mediaDevices}
+                  selectedVideoSource={this.state.selectedVideoSource}
+                  selectedAudioSource={this.state.selectedAudioSource}
+                  selectedAudioOutput={this.state.selectedAudioOutput}
+
+                  robotMediaDevices={this.state.robotMediaDevices}
+                  selectedRobotVideoSource={this.state.selectedRobotVideoSource}
+                  selectedRobotAudioSource={this.state.selectedRobotAudioSource}
+                  selectedRobotAudioOutput={this.state.selectedRobotAudioOutput}
+
+                  isRobot={this.state.isRobot}
+
+                  robotConnected={this.state.robotConnected}
+                  controllerConnected={this.state.controllerConnected}
+                  iceConnectionState={this.state.iceConnectionState}
+                  signalingState={this.state.signalingState}
+
+                  dataChannel={this.state.dataChannel}
+                  dataChannelIsOpen={this.state.dataChannelIsOpen}
+                  />);
+                }
+              } } />
+
+
+          <canvas height={localVideoPortraitMode ? 1920 : 1080} width={localVideoPortraitMode ? 1080: 1920 }
+              className="local-video-canvas" ref={(canvas) => { this.localVideoCanvasElement = canvas; }} />
         </div>
       </Router>
     );

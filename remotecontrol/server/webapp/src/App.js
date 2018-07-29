@@ -7,6 +7,16 @@ import { Cockpit } from './Cockpit.js';
 import { RobotDisplay} from './RobotDisplay.js';
 
 
+
+/*
+ * The Android app sends messages to the controller by calling the global
+ * "window.onAndroidAppSendMessage" function. This function is created by the App class'
+ * constructor and sends the message as-is from the android app over the dataChannel.
+ *
+ */
+
+
+
 function handleGetUserMediaError(error) {
   if (error.name === 'OverconstrainedError') {
     console.error('navigator.getUserMedia() threw an OverconstrainedError. constraint:' + error.constraint + '. message:' + error.message);
@@ -37,7 +47,19 @@ class App extends Component {
     let selectedVideoSource = null;
     let selectedAudioSource = null;
     let selectedAudioOutput = null;
-    if (!isRobot) {
+    if (isRobot) {
+      // we must create a couple of a function that the Android app can call to
+      // send messages over the dataChannel.
+      window.onAndroidAppSendDataChannelMessage = (msg) =>  {
+        if (this.state.dataChannelIsOpen) {
+          console.log("onAndroidAppSendDataChannelMessage() running. msg:" + msg);
+          this.state.dataChannel.send(msg);
+        } else {
+          console.log("onAndroidAppSendDataChannelMessage() running, but the datachannel is not open!");
+        }
+      }
+
+    } else {
       selectedVideoSource = localStorage.getItem("selectedVideoSource");
       selectedAudioSource = localStorage.getItem("selectedAudioSource");
       selectedAudioOutput = localStorage.getItem("selectedAudioOutput");
@@ -269,6 +291,9 @@ class App extends Component {
               selectedRobotAudioSource: message.selectedAudioSource,
               selectedRobotAudioOutput: message.selectedAudioOutput,
             });
+          } else if (message.type === "setState") {
+            console.info("Got a setState message: " + JSON.stringify(message.state));
+            thisthis.setState(message.state);
           } else {
             console.error("Got an unknown dataChannel message:" + JSON.stringify(message));
           }
@@ -337,6 +362,10 @@ class App extends Component {
       dataChannelIsOpen: true,
     });
 
+    if (window.androidApp) {
+      window.androidApp.setDataChannelIsOpen(false);
+    }
+
     dataChannel.onerror = function (error) {
       console.log("Data Channel Error:", error);
     };
@@ -354,11 +383,13 @@ class App extends Component {
           steering: message.steering,
           throttle: message.throttle,
           });
-      } else {
 
+        if (window.androidApp) {
+          window.androidApp.setSteeringAndThrottle(message.steering, message.throttle);
+        }
+      } else {
         console.error("Got an unknown dataChannel message:" + JSON.stringify(message));
       }
-
     };
 
     dataChannel.onopen = function () {
@@ -366,6 +397,9 @@ class App extends Component {
       thisthis.setState({
         dataChannelIsOpen: true,
       }, thisthis.sendRobotDeviceInfosMessageIfNeeded);
+      if (window.androidApp) {
+        window.androidApp.setDataChannelIsOpen(true);
+      }
     };
 
     dataChannel.onclose = function () {
@@ -373,6 +407,9 @@ class App extends Component {
       thisthis.setState({
         dataChannelIsOpen: false,
       });
+      if (window.androidApp) {
+        window.androidApp.setDataChannelIsOpen(false);
+      }
     };
   }
 
@@ -517,29 +554,33 @@ class App extends Component {
         canvasBackgroundColour = "#5F5F5F";
       }
 
-      setInterval(() => {
-          ctx.font = "150px Arial";
-          const d = new Date();
-          let n = (d.getTime() / 1000).toFixed(0);
+      let updateLocalCanvas = null;
+      updateLocalCanvas = () => {
+        //console.log("Updating local canvas");
+        ctx.font = "150px Arial";
+        const d = new Date();
+        let n = (d.getTime() / 1000).toFixed(0);
 
-          ctx.fillStyle =canvasBackgroundColour;
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = canvasBackgroundColour;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-          ctx.fillStyle ="#000000";
+        ctx.fillStyle ="#000000";
 
-          if (this.state.isRobot) {
-            ctx.fillText("Robot time:", 5, 150);
-            ctx.fillText(n, 5, 300);
-            ctx.fillText("steering:" + this.state.steering, 30, 500);
-            ctx.fillText("throttle:" + this.state.throttle, 30, 700);
-          } else {
-            ctx.fillText("Controller time:", 5, 150);
-            ctx.fillText(n, 5, 300);
-          }
+        if (this.state.isRobot) {
+          ctx.fillText("Robot time:", 5, 150);
+          ctx.fillText(n, 5, 300);
+          ctx.fillText("steering:" + this.state.steering, 30, 500);
+          ctx.fillText("throttle:" + this.state.throttle, 30, 700);
+        } else {
+          ctx.fillText("Controller time:", 5, 150);
+          ctx.fillText(n, 5, 300);
+        }
 
+        //console.log("Done updating local canvas");
+        setTimeout(updateLocalCanvas, 10000);
+      };
+      setTimeout(updateLocalCanvas, 500);
 
-        }, 100
-      )
     }, 100);
 
     setInterval(this.logStats, 3000);
@@ -594,7 +635,40 @@ class App extends Component {
 
   gotDevices = (deviceInfos) => {
     console.log("gotDevices() deviceInfos: " + JSON.stringify(deviceInfos));
-    this.setState({mediaDevices: deviceInfos}, this.sendRobotDeviceInfosMessageIfNeeded);
+
+    const videoInputs = [];
+    const audioInputs = [];
+    const audioOutputs = [];
+
+    if (deviceInfos) {
+      for (let i = 0; i !== deviceInfos.length; ++i) {
+        const deviceInfo = deviceInfos[i];
+        if (deviceInfo.kind === 'audioinput') {
+          audioInputs.push(deviceInfo);
+        } else if (deviceInfo.kind === 'audiooutput') {
+          audioOutputs.push(deviceInfo);
+
+        } else if (deviceInfo.kind === 'videoinput') {
+          videoInputs.push(deviceInfo);
+
+        } else {
+          console.log('Some other kind of source/device: ', deviceInfo);
+        }
+      }
+    }
+
+
+    const updatedState = {
+      mediaDevices: deviceInfos,
+    };
+    if (this.state.isRobot) {
+      if (!this.state.selectedVideoSource) {
+        if (videoInputs.length > 0) {
+          updatedState.selectedVideoSource = videoInputs[0].deviceId;
+        }
+      }
+    }
+    this.setState(updatedState, this.sendRobotDeviceInfosMessageIfNeeded);
   }
 
   gotStream = (stream) => {
@@ -744,6 +818,8 @@ class App extends Component {
                   controllerConnected={this.state.controllerConnected}
                   iceConnectionState={this.state.iceConnectionState}
                   signalingState={this.state.signalingState}
+
+                  robotHardwareErrorMsg={this.state.robotHardwareErrorMsg}
 
                   dataChannel={this.state.dataChannel}
                   dataChannelIsOpen={this.state.dataChannelIsOpen}

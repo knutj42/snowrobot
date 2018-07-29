@@ -93,6 +93,7 @@ export class Cockpit extends Component {
           selectedRobotVideoSource={this.props.selectedRobotVideoSource}
           selectedRobotAudioSource={this.props.selectedRobotAudioSource}
           selectedRobotAudioOutput={this.props.selectedRobotAudioOutput}
+          robotHardwareErrorMsg={this.props.robotHardwareErrorMsg}
 
           setMainState={this.props.setMainState}
         />

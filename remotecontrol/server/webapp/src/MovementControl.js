@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import {throttle} from 'lodash';
 
 import './MovementControl.css';
 
@@ -15,6 +16,8 @@ export class MovementControl extends Component {
       height: 0,
       width: 0,
     };
+
+
   }
 
   // we could get away with not having this (and just having the listeners on
@@ -49,7 +52,9 @@ export class MovementControl extends Component {
 
     // Send a movementmessage a couple a times a second even if no movement has been made,
     // so that the robot knows that the  controller is alive.
-    this.sendMovementMessageTimer = setInterval(this.sendMovementMessage, 500);
+    this.sendMovementMessageTimer = setInterval(this.sendMovementMessage,
+     500
+    );
 
     e.stopPropagation()
     e.preventDefault()
@@ -92,7 +97,7 @@ export class MovementControl extends Component {
     e.preventDefault()
   }
 
-  sendMovementMessage = () => {
+  sendMovementMessage = throttle(() => {
     if (this.props.dataChannelIsOpen) {
       if (this.props.dataChannel.bufferedAmount > 1000) {
         console.log("Skipping movement message, since the datachannel seems busy. dataChannel.bufferedAmount:" + this.props.dataChannel.bufferedAmount);
@@ -109,7 +114,11 @@ export class MovementControl extends Component {
     } else {
         console.log("Skipping movement message, since the datachannel isn't open");
     }
-  }
+  }, 100
+  , {
+    leading: true,
+    trailing: true,
+  })
 
   componentDidMount = () =>  {
     this.updateSize();

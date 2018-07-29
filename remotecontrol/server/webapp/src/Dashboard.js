@@ -46,7 +46,7 @@ export class Dashboard extends Component {
             disabled={this.props.selectedRobotVideoSource === deviceInfo.deviceId}
             onClick={(event)=> {
                 event.preventDefault();
-                this.props.setMainState({selectedRobotVideoSource:deviceInfo.deviceIde});
+                this.props.setMainState({selectedRobotVideoSource:deviceInfo.deviceId});
               }
             }
           >
@@ -59,10 +59,19 @@ export class Dashboard extends Component {
       }
     }
 
+    let robotHardwareErrorMsg = null;
+    if (this.props.robotHardwareErrorMsg && this.props.robotHardwareErrorMsg !== 'null') {
+      robotHardwareErrorMsg = (
+        <div>
+          Hardware error: {this.props.robotHardwareErrorMsg}
+        </div>
+      );
+    }
 
     return (
       <div className="dashboard">
         {robotVideoInputs}
+        {robotHardwareErrorMsg}
       </div>
     );
   }

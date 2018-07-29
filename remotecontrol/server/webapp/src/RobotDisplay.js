@@ -2,7 +2,6 @@ import React, { Component } from 'react';
 
 import './RobotDisplay.css';
 
-
 export class RobotDisplay extends Component {
   constructor(props) {
     super(props);
@@ -10,6 +9,7 @@ export class RobotDisplay extends Component {
     this.remoteVideoElement = null;
     this.state = {
     };
+
   }
 
   render() {
@@ -33,6 +33,15 @@ export class RobotDisplay extends Component {
       }
       const peerStatus = controllerConnected ? "online" : "offline";
       statusListElements.push(<li key="controller" className={controllerConnected?okClass:errorClass}  >Controller is {peerStatus}</li>);
+
+      const androidApp = window.androidApp;
+      const androidAppStatus = androidApp ? "present" : "not injected";
+      if (!androidApp) {
+        hasErrors = true;
+      }
+      statusListElements.push(<li key="androidApp" className={androidApp?okClass:errorClass}>androidApp is {androidAppStatus}</li>);
+
+
     } else {
       if (!robotConnected) {
         hasErrors = true;

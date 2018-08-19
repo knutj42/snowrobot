@@ -93,6 +93,8 @@ class App extends Component {
       iceConnectionState: null,
       signalingState: null,
       peerConnection: null,
+
+      lastPingRoundTripTime: null,
     };
 
     if (isRobot) {
@@ -273,6 +275,7 @@ class App extends Component {
         this.setState({
           dataChannel,
           dataChannelIsOpen: false,
+          lastPingRoundTripTime: null,
         });
 
         dataChannel.onerror = function (error) {
@@ -294,6 +297,15 @@ class App extends Component {
           } else if (message.type === "setState") {
             console.info("Got a setState message: " + JSON.stringify(message.state));
             thisthis.setState(message.state);
+          } else if (message.type === "pong") {
+            console.info("Got a pong message: " + JSON.stringify(message.state));
+
+            var currentTime = Date.now();
+            var lastPingRoundTripTime = currentTime - thisthis.lastPingSendTime;
+            thisthis.setState({lastPingRoundTripTime});
+            clearTimeout(thisthis.pingTimerId);
+            thisthis.pingTimerId = setTimeout(thisthis.sendPingMsg, 1000);
+
           } else {
             console.error("Got an unknown dataChannel message:" + JSON.stringify(message));
           }
@@ -302,11 +314,12 @@ class App extends Component {
         dataChannel.onopen = function () {
           console.log("Got a dataChannel 'onopen' event.");
           thisthis.setState({dataChannelIsOpen: true});
+          thisthis.pingTimerId = setTimeout(thisthis.sendPingMsg, 500);
         };
 
         dataChannel.onclose = function () {
           console.log("Got a dataChannel 'onclose' event.");
-          thisthis.setState({dataChannelIsOpen: false});
+          thisthis.setState({dataChannelIsOpen: false, lastPingRoundTripTime: null});
         };
       }
       pc.ondatachannel = this.onDataChannel;
@@ -386,6 +399,12 @@ class App extends Component {
 
         if (window.androidApp) {
           window.androidApp.setSteeringAndThrottle(message.steering, message.throttle);
+        }
+      } else if (message.type === "ping") {
+        console.info("Got a ping message: " + JSON.stringify(message));
+
+        if (window.androidApp) {
+          window.androidApp.onPingMsg();
         }
       } else {
         console.error("Got an unknown dataChannel message:" + JSON.stringify(message));
@@ -585,7 +604,24 @@ class App extends Component {
 
     setInterval(this.logStats, 3000);
 
+    if (!this.state.isRobot) {
+      this.pingTimerId = setTimeout(this.sendPingMsg, 5000);
+    }
+
   }
+
+
+  sendPingMsg = () => {
+    if (this.state.dataChannelIsOpen) {
+      console.log("sendPingMsg() running.");
+      this.lastPingSendTime = Date.now();
+      this.state.dataChannel.send(JSON.stringify({type: "ping"}));
+    } else {
+      console.log("sendPingMsg() running, but not sending a ping-message, since the datachannel isn't open.")
+    }
+
+  }
+
 
   componentDidUpdate = (prevProps, prevState, snapshot) => {
     console.log("componentDidUpdate() running.")
@@ -823,6 +859,8 @@ class App extends Component {
 
                   dataChannel={this.state.dataChannel}
                   dataChannelIsOpen={this.state.dataChannelIsOpen}
+
+                  lastPingRoundTripTime={this.state.lastPingRoundTripTime}
                   />);
                 }
               } } />

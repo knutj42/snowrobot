@@ -1,6 +1,46 @@
+/* apply a natural box layout model to all elements, but allowing components to change
+http://www.paulirish.com/2012/box-sizing-border-box-ftw/;
+*/
+html,body {
+  box-sizing: border-box;
+}
+*, *:before, *:after { box-sizing: inherit; }
+
+/* Set full height: http://stackoverflow.com/questions/6654958/make-body-have-100-of-the-browser-height */
+html {
+  /* body will set it's height based on its parent, which is html */
+  height: 100%;
+
+  /* set full width as well */
+  width: 100%;
+}
+body {
+  /* min-height is needed for pages that might scroll, ie they may contain _more_ than 100% of viewport height */
+  height: 100%;
+
+  /* needed to prevent unwanted scroll-bars */
+  margin: 0;
+  padding: 0;
+
+  /* This is just so we can tell the body block apart from the app container */
+  _background-color: gray;
+
+}
+
+
 #root {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
+}
+
+#root > div {
+  width: 100%;
+  height: 100%;
+}
+
+#root > div > div {
+  width: 100%;
+  height: 100%;
 }
 
 

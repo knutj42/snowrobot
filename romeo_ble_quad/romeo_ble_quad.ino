@@ -73,12 +73,12 @@ void loop( void )
 {
   if (timeOfLastMovementMessage != 0) {
     unsigned long elapsedTimeSinceLastMovementMessage = millis() - timeOfLastMovementMessage;
-    if(elapsedTimeSinceLastMovementMessage > 1000) {
+    if(elapsedTimeSinceLastMovementMessage > 1000L) {
       // Something is wrong, so stop the motors
       setSpeed(0, 0);
       setSpeed(1, 0);
-      setSpeed(2, 0);
-      setSpeed(3, 0);
+      //setSpeed(2, 0);
+      //setSpeed(3, 0);
       timeOfLastMovementMessage = 0;
     }
   }
@@ -94,17 +94,26 @@ void loop( void )
         uint8_t responseCode = 500;
         int msgSequenceNr = currentCmd[1];
         int cmdId = currentCmd[2];
-        if (cmdId == 100 && currentCmdByteCount == 6) {
-          timeOfLastMovementMessage = millis();
-          int steeringByte = currentCmd[3];
-          int throttleByte = currentCmd[4];
-          float steering = (steeringByte - 128) / 127.0f;
-          float throttle = (throttleByte - 128) / 127.0f;
-          float leftMotorThrottle = max(-1.0f, min(1.0f, throttle + steering));
-          float rightMotorThrottle = max(-1.0f, min(1.0f, throttle - steering));
-          setSpeed(0, leftMotorThrottle);
-          setSpeed(1, rightMotorThrottle);
-          responseCode = 200;  // msg ack
+        switch(cmdId) {
+          case 100:
+            // movement message
+            if (currentCmdByteCount == 6) {
+              timeOfLastMovementMessage = millis();
+              int steeringByte = currentCmd[3];
+              int throttleByte = currentCmd[4];
+              float steering = (steeringByte - 128) / 127.0f;
+              float throttle = (throttleByte - 128) / 127.0f;
+              float leftMotorThrottle = max(-1.0f, min(1.0f, throttle + steering));
+              float rightMotorThrottle = max(-1.0f, min(1.0f, throttle - steering));
+              setSpeed(0, leftMotorThrottle);
+              setSpeed(1, rightMotorThrottle);
+              responseCode = 200;  // msg ack
+           }
+           break;
+           case 101:
+             // this is a ping message. We only need to acknowledge it.
+             responseCode = 200;
+             break;          
         }
         currentCmdByteCount = 0;
         Serial1.write((uint8_t)0);  // msg start marker

@@ -81,7 +81,7 @@ export class MovementControl extends Component {
 
   onMouseMove = (e) => {
     console.log("onMouseMove() running.");
-    if (!this.state.dragging) return
+    if (!this.state.dragging) return;
     let movementX = e.pageX - this.state.dragStartPos.x;
     let movementY = e.pageY - this.state.dragStartPos.y;
     const maxXMovement = (this.state.mainWidth / 2) - (this.state.draggerWidth / 2);
@@ -96,6 +96,73 @@ export class MovementControl extends Component {
     e.stopPropagation()
     e.preventDefault()
   }
+
+
+  onTouchStart = (e) => {
+    console.log("onTouchStart() running.");
+    e.stopPropagation()
+    e.preventDefault();
+    let touch = e.touches.item(0);
+    this.setState({
+      dragging: true,
+      dragStartPos: {
+        x: touch.pageX,
+        y: touch.pageY
+      }
+    })
+
+    // Send a movementmessage a couple a times a second even if no movement has been made,
+    // so that the robot knows that the  controller is alive.
+    this.sendMovementMessageTimer = setInterval(this.sendMovementMessage,
+     500
+    );
+
+  }
+
+  onTouchMove = (e) => {
+    console.log("onTouchMove () running.");
+    e.stopPropagation()
+    e.preventDefault();
+    let touch = e.touches.item(0);
+    if (!this.state.dragging) return;
+    let movementX = touch.pageX - this.state.dragStartPos.x;
+    let movementY = touch.pageY - this.state.dragStartPos.y;
+    const maxXMovement = (this.state.mainWidth / 2) - (this.state.draggerWidth / 2);
+    const maxYMovement = (this.state.mainHeight / 2) - (this.state.draggerHeight / 2);
+    movementX = Math.max(-maxXMovement, Math.min(movementX, maxXMovement));
+    movementY = Math.max(-maxYMovement, Math.min(movementY, maxYMovement));
+
+    const throttle = -movementY / maxYMovement;
+    const steering = movementX / maxXMovement;
+    //console.log("throttle:" + throttle + "  steering:" + steering);
+    this.setState({throttle, steering, movementX, movementY}, this.sendMovementMessage);
+  }
+
+  onTouchEnd = (e) => {
+    console.log("onTouchEnd () running.");
+    this.onTouchCancelOrEnd();
+  }
+
+  onTouchCancel = (e) => {
+    console.log("onTouchEnd () running.");
+    this.onTouchCancelOrEnd();
+  }
+
+
+  onTouchCancelOrEnd = (e) => {
+    this.setState({
+      dragging: false,
+      dragStartPos: null,
+      movementX: 0,
+      movementY:0,
+      throttle:0,
+      steering:0,
+    }, this.sendMovementMessage);
+
+    clearInterval(this.sendMovementMessageTimer);
+    this.sendMovementMessageTimer = null;
+  }
+
 
   sendMovementMessage = throttle(() => {
     if (this.props.dataChannelIsOpen) {
@@ -154,6 +221,12 @@ export class MovementControl extends Component {
           <div className="dragger-parent">
             <div ref={(draggerElement) => this.draggerElement = draggerElement}  className="dragger"
               onMouseDown={this.onMouseDown}
+              onTouchStart={this.onTouchStart}
+              onTouchMove={this.onTouchMove}
+              onTouchEnd={this.onTouchEnd}
+              onTouchCancel={this.onTouchCancel}
+
+
               style={{
                 position: 'relative',
                 top: this.state.movementY,

@@ -68,10 +68,17 @@ export class Dashboard extends Component {
       );
     }
 
+    let pingMsg = null;
+    if (this.props.lastPingRoundTripTime == null ) {
+      pingMsg = "*no ping response*";
+    } else {
+      pingMsg = "ping roundtrip time: " + this.props.lastPingRoundTripTime + "ms";
+    }
     return (
       <div className="dashboard">
         {robotVideoInputs}
         {robotHardwareErrorMsg}
+        {pingMsg}
       </div>
     );
   }

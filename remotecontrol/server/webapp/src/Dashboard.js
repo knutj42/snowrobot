@@ -7,9 +7,25 @@ export class Dashboard extends Component {
   constructor(props) {
     super(props);
     this.state = {
+      kp: 0,
+      ki: 0,
+      kd: 0,
     };
   }
 
+
+  onUpdatePIDClicked = () => {
+    if (this.props.dataChannelIsOpen) {
+      console.log("Sending PID message.");
+
+      this.props.dataChannel.send(JSON.stringify({
+        "type": "pid",
+        "kp": this.state.kp,
+        "ki": this.state.ki,
+        "kd": this.state.kd,
+      }));
+    }
+  }
 
   render = () => {
     const robotVideoInputs = [];
@@ -74,11 +90,30 @@ export class Dashboard extends Component {
     } else {
       pingMsg = "ping roundtrip time: " + this.props.lastPingRoundTripTime + "ms";
     }
+
+
     return (
       <div className="dashboard">
         {robotVideoInputs}
         {robotHardwareErrorMsg}
         {pingMsg}
+        <div>
+          <input
+            onChange={ (event) => {this.setState({kp: parseFloat(event.target.value)})}}
+            type="number" step="0.001" min="0"
+            name="kp" value={this.state.kp} />
+
+          <input
+            onChange={ (event) => {this.setState({ki: parseFloat(event.target.value)})}}
+            type="number" step="0.001" min="0"
+            name="ki" value={this.state.ki} />
+
+          <input
+            onChange={ (event) => {this.setState({kd: parseFloat(event.target.value)})}}
+            type="number" step="0.001" min="0"
+            name="kd" value={this.state.kd} />
+          <button onClick={this.onUpdatePIDClicked}>Update PID</button>
+        </div>
       </div>
     );
   }

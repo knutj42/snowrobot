@@ -2,19 +2,9 @@
 
  * Add buttons on the "Cockpit" page on the controller for selecting robot videosource, audiosource and audiooutput.
 
- * Add support for sending robot movement commands from the controller via the arrow keys on the keyboard and
-   by holding and dragging a gui-widget. When using the arrow keys, the gui-widget should move accordingly on
-   its own.
-   * The commands should be sent via the datachannel twice a second (or at once when a value is changed).
+ * Add support for sending robot movement commands from the controller via the arrow keys on the keyboard.
+   When using the arrow keys, the gui-widget should move accordingly on its own.
    * The robot-webpage should display values of the last received movement command
-   * The robol-webpage should call a method on the injected java-object (if the object is present).
-
-
- * Get the arduino ide up and running for the microcontroller.
-
- * Hook a battery and two lego motors up to the microcontroller. Make a sketch that make the motors run.
-
- * Add bluetooth support in the app and get it to connect to the microcontroller.
 
  * Add support for selecting multiple cameras on the robot.
 

@@ -119,6 +119,11 @@ class App extends Component {
       if (this.state.localVideoSteam) {
         this.sendIAmMessage();
       }
+
+      if (window.androidApp) {
+        window.androidApp.setIsConnectedToServer(true);
+      }
+
     });
 
     socket.on('disconnect', () => {
@@ -127,6 +132,11 @@ class App extends Component {
       this.setState({
         connectedToServer: false,
         });
+
+      if (window.androidApp) {
+        window.androidApp.setIsConnectedToServer(false);
+      }
+
     });
     socket.on('robot-connected', () => {
       this.setState({'robotConnected': true});
@@ -298,7 +308,7 @@ class App extends Component {
             console.info("Got a setState message: " + JSON.stringify(message.state));
             thisthis.setState(message.state);
           } else if (message.type === "pong") {
-            console.info("Got a pong message: " + JSON.stringify(message.state));
+            console.info("Got a pong message.");
 
             var currentTime = Date.now();
             var lastPingRoundTripTime = currentTime - thisthis.lastPingSendTime;
@@ -399,6 +409,17 @@ class App extends Component {
 
         if (window.androidApp) {
           window.androidApp.setSteeringAndThrottle(message.steering, message.throttle);
+        }
+      } else if (message.type === "pid") {
+        console.info("Got a pid tuning message: " + JSON.stringify(message));
+        thisthis.setState({
+          pid_kp: message.kp,
+          pid_ki: message.ki,
+          pid_kd: message.kd,
+          });
+
+        if (window.androidApp) {
+          window.androidApp.setPID(message.kp, message.ki, message.kd);
         }
       } else if (message.type === "ping") {
         console.info("Got a ping message: " + JSON.stringify(message));
@@ -613,9 +634,13 @@ class App extends Component {
 
   sendPingMsg = () => {
     if (this.state.dataChannelIsOpen) {
+      try {
       console.log("sendPingMsg() running.");
       this.lastPingSendTime = Date.now();
       this.state.dataChannel.send(JSON.stringify({type: "ping"}));
+      } catch (error) {
+        console.error("sendPingMsg() failed to send a ping-message:" + error)
+      }
     } else {
       console.log("sendPingMsg() running, but not sending a ping-message, since the datachannel isn't open.")
     }

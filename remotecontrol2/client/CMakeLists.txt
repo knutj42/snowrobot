@@ -17,7 +17,7 @@ target_link_directories(client PRIVATE
 target_link_libraries(client PRIVATE
     #gstreamer-1.0
     libgstreamer-1.0
-    #libglib-2.0
+    libglib-2.0
     #libgstapp-1.0
 
 )

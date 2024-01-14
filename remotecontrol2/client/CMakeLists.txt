@@ -5,6 +5,9 @@ project(Client)
 add_executable(client client.cpp)
 target_include_directories(client PRIVATE
     C:/msys64/ucrt64/include/gstreamer-1.0
+    C:/msys64/ucrt64/include/qt6
+    C:/msys64/ucrt64/include/qt6/QtGui
+    C:/msys64/ucrt64/include/qt6/QtWidgets
     C:/msys64/mingw64/include/glib-2.0
     C:/msys64/usr/lib/glib-2.0/include
     )
@@ -18,6 +21,9 @@ target_link_libraries(client PRIVATE
     #gstreamer-1.0
     libgstreamer-1.0
     libglib-2.0
+    libQt6Core
+    libQt6Gui
+    libQt6Widgets
     #libgstapp-1.0
 
 )

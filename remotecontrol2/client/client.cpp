@@ -1,12 +1,10 @@
 
 // https://github.com/KubaO/stackoverflown/tree/master/questions/dynamic-widget-10790454
 #include <cmath>
-#include <QtGui>
-#if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
-#include <QtWidgets>
-#endif
+#include <QtGui/QtGui>
+#include <QtWidgets/QtWidgets>
 #include <array>
-
+#include <boost/asio/asio.hpp>
 // Interface
 
 

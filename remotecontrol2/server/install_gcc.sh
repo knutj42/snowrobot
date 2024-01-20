@@ -22,10 +22,10 @@ OPTS=--enable-languages=c,c++,fortran \
 #
 #  For any computer with less than 4GB of memory.
 #
-#if [ -f /etc/dphys-swapfile ]; then
-#  sudo sed -i 's/^CONF_SWAPSIZE=[0-9]*$/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
-#  sudo /etc/init.d/dphys-swapfile restart
-#fi
+if [ -f /etc/dphys-swapfile ]; then
+  sudo sed -i 's/^CONF_SWAPSIZE=[0-9]*$/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+  sudo /etc/init.d/dphys-swapfile restart
+fi
 
 if [ -d gcc-$VERSION ]; then
   cd gcc-$VERSION

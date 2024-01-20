@@ -10,33 +10,34 @@
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/exception/diagnostic_information.hpp> 
+#include <boost/log/trivial.hpp>
 
 using namespace boost::asio::experimental::awaitable_operators;
 
 
 boost::asio::awaitable<void> echo(boost::asio::ip::tcp::socket& sock, std::chrono::steady_clock::time_point& deadline)
 {
-  char data[4196];
+  char data[5];
   for (;;)
   {
     try {
       deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
       auto n = co_await sock.async_read_some(boost::asio::buffer(data), boost::asio::use_awaitable);
-      std::cout << "echo() read " << n << " bytes" << std::endl;
+      BOOST_LOG_TRIVIAL(info) << "echo() read " << n << " bytes";
       co_await boost::asio::async_write(sock, boost::asio::buffer(data, n), boost::asio::use_awaitable);
-      std::cout << "echo() sent " << n << " bytes" << std::endl;
-    } 
+      BOOST_LOG_TRIVIAL(info) << "echo() sent " << n << " bytes";
+    }
     catch(const boost::system::system_error& e) {
       if (e.code().value() == boost::asio::error::operation_aborted) {
-        std::cout << "echo() got an operation_aborted exception, which means that the connection timed out." << std::endl;
+        BOOST_LOG_TRIVIAL(info) << "echo() got an operation_aborted exception, which means that the connection timed out.";
       } else {
         std::string info = boost::diagnostic_information(e, true);
-        std::cout << "echo() got boost::system::system_error exception: " << info << ". code:" << e.code() << std::endl;
+        BOOST_LOG_TRIVIAL(info) << "echo() got boost::system::system_error exception: " << info << ". code:" << e.code();
       }
       break;
     }
     catch(const std::exception& e) {
-      std::cout << "echo() got an '" << typeid(e).name() << "' exception (I'll rethrow it): " << e.what() << std::endl;
+      BOOST_LOG_TRIVIAL(info) << "echo() got an '" << typeid(e).name() << "' exception (I'll rethrow it): " << e.what();
       throw;
     }
 
@@ -54,12 +55,13 @@ boost::asio::awaitable<void> watchdog(std::chrono::steady_clock::time_point& dea
     now = std::chrono::steady_clock::now();
   }
   //throw boost::system::system_error(std::make_error_code(std::errc::timed_out));
-  std::cout << "watchdog() exiting, since we timed out" << std::endl;
+  BOOST_LOG_TRIVIAL(info) << "watchdog() exiting, since we timed out";
 }
 
 
 boost::asio::awaitable<void> handle_connection(boost::asio::ip::tcp::socket sock)
 {
+  BOOST_LOG_TRIVIAL(info) << "handle_connection() got a new connection from " << sock.remote_endpoint();
   std::chrono::steady_clock::time_point deadline{};
   try {
     co_await (
@@ -68,26 +70,26 @@ boost::asio::awaitable<void> handle_connection(boost::asio::ip::tcp::socket sock
       watchdog(deadline)
       );
 
-    std::cout << "handle_connection() co_await() returned ok." << std::endl;
-    
+    BOOST_LOG_TRIVIAL(info) << "handle_connection() co_await() returned with no errors.";
+
   }
   catch(const boost::asio::multiple_exceptions& e) {
-    std::cout << "handle_connection() got an boost::asio::multiple_exceptions: " << e.what() << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "handle_connection() got an boost::asio::multiple_exceptions: " << e.what();
     if (e.first_exception()) {
       try {
         std::rethrow_exception(e.first_exception());
       }
       catch(const std::exception& fe) {
-        std::cout << "handle_connection() e.first_exception(): " << fe.what() << std::endl;
+        BOOST_LOG_TRIVIAL(info) << "handle_connection() e.first_exception(): " << fe.what();
       }
     }
   }
   catch(const boost::system::system_error& e) {
     std::string info = boost::diagnostic_information(e, true);
-    std::cout << "handle_connection() got boost::system::system_error exception: " << info << ". code:" << e.code() << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "handle_connection() got boost::system::system_error exception: " << info << ". code:" << e.code();
   }
   catch(const std::exception& e) {
-    std::cout << "handle_connection() got an exception: " << e.what() << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "handle_connection() got an exception: " << e.what();
   }
 }
 
@@ -104,19 +106,19 @@ boost::asio::awaitable<void> listen(boost::asio::ip::tcp::acceptor& acceptor)
     }
   }
   catch(const std::exception& e) {
-    std::cout << "listen() got an exception: " << e.what() << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "listen() got an exception: " << e.what();
   }
 
 }
 
 int main()
 {
-  std::cout << "server starting up." << std::endl;
+  BOOST_LOG_TRIVIAL(info) << "server starting up.";
   boost::asio::io_context ctx;
   boost::asio::ip::tcp::acceptor acceptor(ctx, {boost::asio::ip::tcp::v4(), 12345});
-  std::cout << "server created acceptor." << std::endl;
+  BOOST_LOG_TRIVIAL(info) << "server created acceptor.";
   co_spawn(ctx, listen(acceptor), boost::asio::detached);
-  std::cout << "server calling ctx.run()." << std::endl;
+  BOOST_LOG_TRIVIAL(info) << "server calling ctx.run().";
   ctx.run();
-  std::cout << "server finished ok." << std::endl;
+  BOOST_LOG_TRIVIAL(info) << "server finished ok.";
 }

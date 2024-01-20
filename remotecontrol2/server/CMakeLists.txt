@@ -7,7 +7,15 @@ project(Server)
 
 add_executable(server server.cpp)
 
+
 target_compile_features(server PUBLIC cxx_std_23)
+
+find_package(Boost 1.84.0
+             COMPONENTS log
+             REQUIRED)
+
+target_link_libraries(server PRIVATE
+                      Boost::log)
 
 target_include_directories(server PRIVATE
     )
@@ -35,16 +43,17 @@ endif()
 
 target_precompile_headers(server
   PRIVATE
-    <chrono>
-    <iostream>
-    <memory>
-    <typeinfo>
+     <chrono>
+     <iostream>
+     <memory>
+     <typeinfo>
 
-    <boost/asio/buffer.hpp>
-    <boost/asio/detached.hpp>
-    <boost/asio/experimental/awaitable_operators.hpp>
-    <boost/asio/ip/tcp.hpp>
-    <boost/asio/use_awaitable.hpp>
-    <boost/asio/write.hpp>
-    <boost/exception/diagnostic_information.hpp> 
-)
+     <boost/asio/buffer.hpp>
+     <boost/asio/detached.hpp>
+     <boost/asio/experimental/awaitable_operators.hpp>
+     <boost/asio/ip/tcp.hpp>
+     <boost/asio/use_awaitable.hpp>
+     <boost/asio/write.hpp>
+     <boost/exception/diagnostic_information.hpp> 
+     <boost/log/trivial.hpp>
+  )

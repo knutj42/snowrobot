@@ -1,12 +1,20 @@
+#include <winsock2.h>
 
-// https://github.com/KubaO/stackoverflown/tree/master/questions/dynamic-widget-10790454
 #include <cmath>
 #include <QtGui/QtGui>
 #include <QtWidgets/QtWidgets>
 #include <array>
-#include <boost/asio/asio.hpp>
-// Interface
+#include <chrono>
+#include <iostream>
+#include <memory>
+#include <typeinfo>
 
+
+#include <gst/gst.h>
+
+#include "../common/linebasedserver.h"
+
+namespace snowrobot {
 
 class ClockView : public QLabel
 {
@@ -63,8 +71,28 @@ int main(int argc, char** argv)
 {
     QApplication app{argc, argv};
     MainWindow w;
+
+    boost::asio::io_context ctx;
+
+    int admin_port_nr = 12346;
+    LineBasedServer admin_port(ctx, admin_port_nr, [](const std::string request) {
+        std::string response;
+        if (request == "ping") {
+        response = "pong";
+        } else {
+        response = "ERROR: unknown request '" + request + "'";
+        }
+        return response;
+    });
+
+    BOOST_LOG_TRIVIAL(info) << "client starting up.";
+    std::thread asio_main_thread([&ctx]{ctx.run();});
+
     w.show();
-    return app.exec();
+    int result = app.exec();
+
+    return result;
+
 }
 
 
@@ -120,3 +148,9 @@ main (int argc, char *argv[])
   return 0;
 }
 */
+
+}
+
+int main(int argc, char** argv) {
+    return snowrobot::main(argc, argv);
+}

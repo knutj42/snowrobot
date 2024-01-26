@@ -1,0 +1,1 @@
+This folder contains code that is used by both the server and the client.

@@ -14,8 +14,6 @@ find_package(Boost 1.84.0
              COMPONENTS log
              REQUIRED)
 
-target_link_libraries(server PRIVATE
-                      Boost::log)
 
 target_include_directories(server PRIVATE
     )
@@ -25,7 +23,8 @@ target_link_directories(server PRIVATE
 
 
 target_link_libraries(server PRIVATE
-    #gstreamer-1.0
+    snowrobotcommon
+    Boost::log
     gstreamer-1.0
     glib-2.0
     pthread
@@ -40,20 +39,3 @@ target_link_libraries(server PRIVATE
   wsock32  # windows only
 )
 endif()
-
-target_precompile_headers(server
-  PRIVATE
-     <chrono>
-     <iostream>
-     <memory>
-     <typeinfo>
-
-     <boost/asio/buffer.hpp>
-     <boost/asio/detached.hpp>
-     <boost/asio/experimental/awaitable_operators.hpp>
-     <boost/asio/ip/tcp.hpp>
-     <boost/asio/use_awaitable.hpp>
-     <boost/asio/write.hpp>
-     <boost/exception/diagnostic_information.hpp> 
-     <boost/log/trivial.hpp>
-  )

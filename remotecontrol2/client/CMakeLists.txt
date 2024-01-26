@@ -7,6 +7,13 @@ project(Client)
 add_executable(client client.cpp)
 target_compile_features(client PUBLIC cxx_std_23)
 
+find_package(Boost 1.84.0
+             COMPONENTS log
+             REQUIRED)
+
+target_link_libraries(client PRIVATE
+                      Boost::log)
+
 
 target_include_directories(client PRIVATE
     C:/msys64/ucrt64/include/gstreamer-1.0
@@ -21,7 +28,9 @@ target_link_directories(client PRIVATE
 
 
 target_link_libraries(client PRIVATE
-    #gstreamer-1.0
+    snowrobotcommon
+    Boost::log
+    pthread
     libgstreamer-1.0
     libglib-2.0
     libQt6Core
@@ -31,3 +40,11 @@ target_link_libraries(client PRIVATE
 
 )
 
+
+
+if(CMAKE_HOST_WIN32)
+target_link_libraries(client PRIVATE
+  ws2_32 # windows only
+  wsock32  # windows only
+)
+endif()

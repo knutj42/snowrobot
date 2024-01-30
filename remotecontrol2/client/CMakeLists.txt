@@ -8,12 +8,10 @@ add_executable(client client.cpp)
 target_compile_features(client PUBLIC cxx_std_23)
 
 find_package(Boost 1.84.0
-             COMPONENTS log
+             COMPONENTS log program_options
              REQUIRED)
 
-target_link_libraries(client PRIVATE
-                      Boost::log)
-
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network Gui Core)
 
 target_include_directories(client PRIVATE
     C:/msys64/ucrt64/include/gstreamer-1.0
@@ -30,12 +28,15 @@ target_link_directories(client PRIVATE
 target_link_libraries(client PRIVATE
     snowrobotcommon
     Boost::log
+    Boost::program_options
     pthread
     libgstreamer-1.0
     libglib-2.0
-    libQt6Core
-    libQt6Gui
-    libQt6Widgets
+    
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Network
+    Qt6::Widgets
     #libgstapp-1.0
 
 )

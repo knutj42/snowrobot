@@ -8,7 +8,7 @@ add_executable(client client.cpp)
 target_compile_features(client PUBLIC cxx_std_23)
 
 find_package(Boost 1.84.0
-             COMPONENTS log program_options
+             COMPONENTS log program_options json
              REQUIRED)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network Gui Core)
@@ -27,6 +27,7 @@ target_link_directories(client PRIVATE
 
 target_link_libraries(client PRIVATE
     snowrobotcommon
+    Boost::json
     Boost::log
     Boost::program_options
     pthread

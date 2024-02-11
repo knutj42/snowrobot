@@ -11,7 +11,7 @@ add_executable(server server.cpp)
 target_compile_features(server PUBLIC cxx_std_23)
 
 find_package(Boost 1.84.0
-             COMPONENTS log program_options
+             COMPONENTS json log program_options
              REQUIRED)
 
 
@@ -27,6 +27,7 @@ target_link_directories(server PRIVATE
 
 target_link_libraries(server PRIVATE
     snowrobotcommon
+    Boost::json
     Boost::log
     Boost::program_options
     gstreamer-1.0

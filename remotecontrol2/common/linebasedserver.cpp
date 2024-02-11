@@ -5,8 +5,12 @@ namespace snowrobot {
 
 
 LineBasedServer::LineBasedServer(boost::asio::io_context& ctx, boost::asio::ip::port_type admin_port_nr,
-           std::function<std::string(std::string)> response_func) : 
-          response_func(response_func)
+                ConnectionMadeFunc connection_made_func,
+                ConnectionLostFunc connection_lost_func,
+                RequestReceivedFunc response_func
+) : connection_made_func_(connection_made_func),
+    connection_lost_func_(connection_lost_func),
+    response_func_(response_func)
 {
   boost::asio::co_spawn(ctx, this->listen(ctx, admin_port_nr), [](std::exception_ptr eptr)
   {
@@ -38,12 +42,12 @@ boost::asio::awaitable<void> LineBasedServer::listen(boost::asio::io_context& ct
     for (;;)
     {
       boost::asio::co_spawn(
-      acceptor.get_executor(),
-      this->handle_connection(co_await acceptor.async_accept(boost::asio::use_awaitable)),
-      boost::asio::detached);
+        acceptor.get_executor(),
+        this->handle_connection(co_await acceptor.async_accept(boost::asio::use_awaitable)),
+        boost::asio::detached);
     }
   }
-    catch(const boost::system::system_error& e) {
+  catch(const boost::system::system_error& e) {
     std::string info = boost::diagnostic_information(e, true);
     BOOST_LOG_TRIVIAL(info) << "LineBasedServer::listen() got a boost::system::system_error exception: " << info << ". code:" << e.code();
     throw;
@@ -71,36 +75,59 @@ boost::asio::awaitable<void> LineBasedServer::watchdog(std::chrono::steady_clock
 }
 
 
+
+class ConnectionLostRAII {
+  public:
+    ConnectionLostRAII(ConnectionLostFunc connection_lost_func, const std::string connection_token):
+      connection_lost_func_(connection_lost_func), connection_token_(connection_token) {
+    }
+    ~ConnectionLostRAII() {
+      try {
+        this->connection_lost_func_(this->connection_token_);
+      }
+      catch(const std::exception& e) {
+        std::cerr << "~ConnectionLostRAII(): got an exception: " << e.what() << std::endl;
+      }
+    }
+  private:
+    ConnectionLostFunc connection_lost_func_;
+    std::string connection_token_;
+};
+
 boost::asio::awaitable<void> LineBasedServer::handle_connection(boost::asio::ip::tcp::socket sock)
 {
   BOOST_LOG_TRIVIAL(info) << "LineBasedServer::handle_connection() got a new connection from " << sock.remote_endpoint();
+  std::string connection_token = sock.remote_endpoint().address().to_string() + ":" + std::to_string(sock.remote_endpoint().port());
+  this->connection_made_func_(connection_token);
+  ConnectionLostRAII connection_lost_raii(this->connection_lost_func_, connection_token);
+
   std::chrono::steady_clock::time_point deadline{};
   try {
-  co_await (
-    this->handle_requests(sock, deadline)
-    
-    // The "||" operator is overloaded by boost::asio::experimental::awaitable_operators and works like this:
-    // When either of the handle_requests() or watchdog() coroutines exit, the io-operations in the other function will fail with
-    // an boost::asio::error::operation_aborted error. We use this to implement a timeout on the connection: if no message
-    // has been received within a certain time, the watchdog() coroutine will exit. The watchdog deadline time is
-    // extended by handle_requests() each time it receives a message.
-    ||  
+    co_await (
+      this->handle_requests(connection_token, sock, deadline)
+      
+      // The "||" operator is overloaded by boost::asio::experimental::awaitable_operators and works like this:
+      // When either of the handle_requests() or watchdog() coroutines exit, the io-operations in the other function will fail with
+      // an boost::asio::error::operation_aborted error. We use this to implement a timeout on the connection: if no message
+      // has been received within a certain time, the watchdog() coroutine will exit. The watchdog deadline time is
+      // extended by handle_requests() each time it receives a message.
+      ||  
 
-    this->watchdog(deadline)
-    );
+      this->watchdog(deadline)
+      );
 
-  BOOST_LOG_TRIVIAL(info) << "LineBasedServer::handle_connection() co_await() returned with no errors.";
+    BOOST_LOG_TRIVIAL(info) << "LineBasedServer::handle_connection() co_await() returned with no errors.";
 
   }
   catch(const boost::asio::multiple_exceptions& e) {
     BOOST_LOG_TRIVIAL(info) << "LineBasedServer::handle_connection() got an boost::asio::multiple_exceptions: " << e.what();
     if (e.first_exception()) {
-        try {
+      try {
         std::rethrow_exception(e.first_exception());
-        }
-        catch(const std::exception& fe) {
+      }
+      catch(const std::exception& fe) {
         BOOST_LOG_TRIVIAL(info) << "LineBasedServer::handle_connection() e.first_exception(): " << fe.what();
-        }
+      }
     }
   }
   catch(const boost::system::system_error& e) {
@@ -112,7 +139,9 @@ boost::asio::awaitable<void> LineBasedServer::handle_connection(boost::asio::ip:
   }
 }
 
-boost::asio::awaitable<void> LineBasedServer::handle_requests(boost::asio::ip::tcp::socket& sock, std::chrono::steady_clock::time_point& deadline)
+boost::asio::awaitable<void> LineBasedServer::handle_requests(const std::string& connection_token,
+                                                              boost::asio::ip::tcp::socket& sock,
+                                                              std::chrono::steady_clock::time_point& deadline)
 {
   boost::asio::streambuf streambuf;
 
@@ -135,7 +164,7 @@ boost::asio::awaitable<void> LineBasedServer::handle_requests(boost::asio::ip::t
             request.erase(request.size()-1);
           }
         }
-        std::string response = this->response_func(request);
+        std::string response = this->response_func_(connection_token, request);
         response += "\n";
         request.clear();
         // Write the response back to the socket

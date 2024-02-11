@@ -19,6 +19,19 @@ using namespace boost::asio::experimental::awaitable_operators;
 
 namespace snowrobot {
 
+using ConnectionMadeFunc = std::function<void(
+  const std::string&  // connection token (a string that uniquely identifies the connection)
+  )>;
+using ConnectionLostFunc = std::function<void(
+  const std::string&  // connection token (a string that uniquely identifies the connection)
+)>;
+using RequestReceivedFunc = std::function<
+    std::string  // the callback function should return a response-string
+      (
+        const std::string&,  // connection token (a string that uniquely identifies the connection)
+        const std::string&  // the request string
+      )>;
+
 
 // This class implements a simple line-based server. It opens a tcp/ip listen socket on the specified portnumber and start
 // accepting connections. Once a string of bytes ending with '\n' is received the callback function that was specified in
@@ -26,17 +39,27 @@ namespace snowrobot {
 // This is intended to be used to low-volume command-streams where we want to trace latency for readability and ease of
 // debugging. It is nice to be able to use telnet to manually send messages to such servers.
 class LineBasedServer {
+
   public:
-    LineBasedServer(boost::asio::io_context& ctx, boost::asio::ip::port_type admin_port_nr,
-                   std::function<std::string(std::string)> response_func);
+    LineBasedServer(boost::asio::io_context& ctx,
+                    boost::asio::ip::port_type admin_port_nr,
+                    ConnectionMadeFunc connection_made_func,
+                    ConnectionLostFunc connection_lost_func,
+                    RequestReceivedFunc response_func
+                   );
   private:
     boost::asio::awaitable<void> listen(boost::asio::io_context& ctx, boost::asio::ip::port_type admin_port_nr);
 
     boost::asio::awaitable<void> watchdog(std::chrono::steady_clock::time_point& deadline);
 
     boost::asio::awaitable<void> handle_connection(boost::asio::ip::tcp::socket sock);
-    boost::asio::awaitable<void> handle_requests(boost::asio::ip::tcp::socket& sock, std::chrono::steady_clock::time_point& deadline);
-    std::function<std::string(std::string)> response_func;
+    boost::asio::awaitable<void> handle_requests(const std::string& connection_token,
+                                                 boost::asio::ip::tcp::socket& sock,
+                                                 std::chrono::steady_clock::time_point& deadline);
+
+    ConnectionMadeFunc connection_made_func_;
+    ConnectionLostFunc connection_lost_func_;
+    RequestReceivedFunc response_func_;
 };
 
 }

@@ -32,6 +32,10 @@ class DebugPortConnection:
             response = response[:-1] # strip off newline
         return response
 
+    def close(self):
+        self.socket_file.close()
+        self.socket.close()
+
 
 class IntegrationTestBase(unittest.TestCase):
     maxDiff = None
@@ -101,6 +105,9 @@ class IntegrationTestBase(unittest.TestCase):
             print(f"{prefix} - {line}")
 
     def tearDown(self):
+        self.client_connection.close()
+        self.server_connection.close()
+        
         if self.server_process is not None:
             self.server_process.kill()
             self.server_process.wait()
@@ -113,3 +120,4 @@ class IntegrationTestBase(unittest.TestCase):
             self.client_process_thread.join()
         if self.server_process_thread is not None:
             self.server_process_thread.join()
+

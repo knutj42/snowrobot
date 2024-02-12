@@ -11,7 +11,7 @@ find_package(Boost 1.84.0
              COMPONENTS log program_options json
              REQUIRED)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network Gui Core)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network Gui Core MultimediaWidgets)
 
 target_include_directories(client PRIVATE
     C:/msys64/ucrt64/include/gstreamer-1.0
@@ -32,13 +32,14 @@ target_link_libraries(client PRIVATE
     Boost::program_options
     pthread
     libgstreamer-1.0
+    libgstvideo-1.0
     libglib-2.0
-    
+    libgobject-2.0
     Qt6::Core
     Qt6::Gui
     Qt6::Network
     Qt6::Widgets
-    #libgstapp-1.0
+    Qt6::MultimediaWidgets
 
 )
 

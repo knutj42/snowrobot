@@ -4,6 +4,7 @@
 #include <QtGui/QtGui>
 #include <QtWidgets/QtWidgets>
 #include <QTNetwork/QTcpSocket>
+
 #include <array>
 #include <list>
 #include <string>
@@ -14,6 +15,8 @@
 
 
 #include <gst/gst.h>
+#include <gst/video/videooverlay.h>
+
 #include <boost/program_options.hpp>
 #include <boost/json/array.hpp>
 #include <boost/json/object.hpp>
@@ -25,9 +28,42 @@
 namespace snowrobot {
 
 
-struct CameraInfo {
-  std::string name;
-  std::list<std::string> resolutions;
+
+class CameraView : public QFrame {
+  public:
+    CameraView(const std::string& camera_name,
+               const std::list<std::string>& resolutions) : QFrame(), resolutions_(resolutions) {
+      this->camera_name = camera_name;
+      QVBoxLayout* layout = new QVBoxLayout();
+      this->setLayout(layout);
+      resolutions_selector = new QComboBox();
+      for(const std::string& resolution: resolutions) {
+        resolutions_selector->addItem(QString::fromStdString(resolution));
+      }
+      layout->addWidget(resolutions_selector);
+      video_widget = new QWidget();
+      video_widget->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
+      video_widget->setMinimumSize(200,200);
+      video_widget->setStyleSheet("background-color: pink;");
+
+      layout->addWidget(video_widget);
+
+
+      auto winId = video_widget->winId();
+      BOOST_LOG_TRIVIAL(info) << "CameraView::CameraView(): video_widget->getVideoWidgetWinId() " << winId;
+
+    } 
+
+    const std::list<std::string>& getResolutions() const {return resolutions_;}
+    auto getVideoWidgetWinId() {
+      return this->video_widget->winId();
+    }
+
+  private:
+    std::string camera_name;
+    QComboBox* resolutions_selector;
+    std::list<std::string> resolutions_;
+    QWidget* video_widget;
 };
 
 
@@ -46,7 +82,12 @@ int main(int argc, char** argv)
 
   BOOST_LOG_TRIVIAL(info) << "This program is linked against GStreamer " << major << "." << minor << "." << micro << " " << nano_str;
 
-  std::shared_ptr<std::list<CameraInfo>> camerainfo_list;
+  GstElement *pipeline = gst_pipeline_new ("xvoverlay");
+  GstElement *src = gst_element_factory_make ("videotestsrc", NULL);
+  GstElement *sink = gst_element_factory_make ("d3dvideosink", NULL);
+  gst_bin_add_many (GST_BIN (pipeline), src, sink, NULL);
+  gst_element_link (src, sink);
+
 
   int debug_port_nr;
   std::string server_host;
@@ -80,7 +121,13 @@ int main(int argc, char** argv)
   left_menu_layout->addWidget(server_ping_label);
 
   QGridLayout* camera_views_layout = new QGridLayout();
+  std::mutex camera_views_lock;
   central_layout->addLayout(camera_views_layout);
+
+  std::map<std::string, // camera name
+           CameraView*  // camera view
+           > camera_views;
+
 
 
   QTcpSocket* server_socket = new QTcpSocket(&main_window);
@@ -193,23 +240,49 @@ int main(int argc, char** argv)
             const boost::json::array& cameras = response_obj.at("cameras").as_array();
             BOOST_LOG_TRIVIAL(info) << "Got " << cameras.size() << " cameras from the server";
 
-            std::shared_ptr<std::list<CameraInfo>> new_camerainfo_list = std::make_shared<std::list<CameraInfo>>();
             for (const boost::json::value& item : cameras) {
               const boost::json::object& camera = item.as_object();
-              CameraInfo camera_info;
-              camera_info.name = camera.at("name").as_string();
-              for (const boost::json::value& resolution: camera.at("resolutions").as_array()) {
-                camera_info.resolutions.emplace_back(resolution.as_string());
+              std::string camera_name(camera.at("name").as_string());
+              auto find = camera_views.find(camera_name);
+              if (find == camera_views.end()) {
+                std::list<std::string> resolutions;
+                for (const boost::json::value& resolution: camera.at("resolutions").as_array()) {
+                  std::string resolution_str(resolution.as_string());
+                  if (resolution_str.find("video") != 0) {
+                    // this isn't a video-resolution, so skip it. We aren't interested in still-frame resolutions.
+                    continue;
+                  }
+                  resolutions.push_back(resolution_str);
+                }
+                CameraView* new_camera_view = new CameraView(camera_name, resolutions);
+                camera_views[camera_name] = new_camera_view;
+                camera_views_layout->addWidget(new_camera_view);
+                auto winId = new_camera_view->getVideoWidgetWinId();
+                BOOST_LOG_TRIVIAL(info) << "new_camera_view->getVideoWidgetWinId(): " << winId;
+
+                gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (sink), winId);
+
+                // run the pipeline
+                BOOST_LOG_TRIVIAL(info) << "starting the gstreamer pipeline";
+
+                GstStateChangeReturn sret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
+                if (sret == GST_STATE_CHANGE_FAILURE) {
+                  BOOST_LOG_TRIVIAL(error) << "failed to start the gstreamer pipeline" << sret;
+                  gst_element_set_state (pipeline, GST_STATE_NULL);
+                  gst_object_unref (pipeline);
+                  // Exit application
+                  QTimer::singleShot(0, QApplication::activeWindow(), SLOT(quit()));
+                }
               }
-              new_camerainfo_list->push_back(camera_info);
             }
-            camerainfo_list = new_camerainfo_list;
-            if (new_camerainfo_list->size() > 0) {
+            if (camera_views.size() > 0) {
               std::ostringstream msg;
-              msg << "Got " << new_camerainfo_list->size() << " cameras from the server.";
+              msg << "Got " << camera_views.size() << " cameras from the server.";
               BOOST_LOG_TRIVIAL(info) << msg.str();
               showStatusBarMessage(msg.str());
             }
+
+
           } else {
             std::ostringstream msg;
             msg << "Got an unknown response-type '" << response_type << "' from the server! The raw response string was: '" << response_as_str << "'";
@@ -267,24 +340,39 @@ int main(int argc, char** argv)
 
       } else if (request == "get cameras") {
         boost::json::array camera_list;
-
-        auto _camerainfo_list = camerainfo_list;  // make a copy of the std::shared_ptr, since camerainfo_list may be assigned by another thread
-        if (_camerainfo_list) {
-          for(const auto& camera_info : *_camerainfo_list) {
-            boost::json::object camera;
-            camera["name"] = camera_info.name;
-            boost::json::array resolutions;
-            for(const std::string& resolution : camera_info.resolutions) {
-              resolutions.emplace_back(resolution);
-            }
-            camera["resolutions"] = std::move(resolutions);
-            camera_list.push_back(std::move(camera));
+        std::lock_guard guard(camera_views_lock);
+        for(const auto& item : camera_views) {
+          boost::json::object camera;
+          camera["name"] = item.first;
+          CameraView* camera_view = item.second; 
+          boost::json::array resolutions;
+          for(const std::string& resolution : camera_view->getResolutions()) {
+            resolutions.emplace_back(resolution);
           }
+          camera["resolutions"] = std::move(resolutions);
+          camera_list.push_back(std::move(camera));
         }
         response = boost::json::serialize(camera_list);
 
       } else {
-        response = "ERROR: unknown request '" + request + "'";
+        try {
+          boost::json::object request_obj = boost::json::parse(request).as_object();
+          std::string request_type(request_obj.at("type").as_string());
+          if (request_type == "select_camera") {
+            std::string camera_name(request_obj.at("camare").as_string());
+            std::string resolution(request_obj.at("resolution").as_string());
+
+          } else {
+            std::ostringstream msg;
+            msg << "Unknown request type: '" << request_type << "'";
+            throw std::runtime_error(msg.str());
+          }
+
+        } catch(const std::exception& e) {
+          std::ostringstream msg;
+          msg << "ERROR: Got this error: '" << e.what() << "' while trying to handle the request '" << request << "'";
+          response = msg.str();
+        }
       }
       return response;
     }
@@ -302,8 +390,8 @@ int main(int argc, char** argv)
 
   BOOST_LOG_TRIVIAL(info) << "client shutting down. Calling asio_main_thread.join();";
   asio_main_thread.join();
+  
   return result;
-
 }
 
 
@@ -363,5 +451,6 @@ main (int argc, char *argv[])
 }
 
 int main(int argc, char** argv) {
-  return snowrobot::main(argc, argv);
+  int exitcode = snowrobot::main(argc, argv);
+  BOOST_LOG_TRIVIAL(info) << "client exiting with exitcode " << exitcode;
 }

@@ -1,8 +1,6 @@
 #ifndef SNOWROBOT_REMOTECONTROL_COMMON_GST_WRAPPERS_H
 #define SNOWROBOT_REMOTECONTROL_COMMON_GST_WRAPPERS_H
 
-// This file contains some c++ wrappers that make the gstreamer c api slightly less annoying to work with, by
-// automatic freeing of resources with std::unique_ptr.
 
 
 #include <memory>
@@ -11,6 +9,9 @@
 
 namespace snowrobot {
 
+
+// This file contains some c++ wrappers that make the gstreamer c api slightly less annoying to work with, by
+// automatic freeing of resources with std::unique_ptr.
 
 std::string string_from_gchar(gchar* gchar_ptr) {
   std::string result(gchar_ptr);

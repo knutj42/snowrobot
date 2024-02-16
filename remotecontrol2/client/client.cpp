@@ -94,7 +94,7 @@ int main(int argc, char** argv)
   GstElement_ptr sink(gst_element_factory_make("d3dvideosink", NULL));
 
   BOOST_LOG_TRIVIAL(info) << "Calling gst_bin_add_many()..." << pipeline.get() << "  " << src.get() << "  " << sink.get();
-  gst_bin_add_many(GST_BIN(pipeline.get()), src.get(), sink.get(), NULL);
+  gst_bin_add_many(GST_BIN_CAST(pipeline.get()), src.get(), sink.get(), NULL);
 
 
   BOOST_LOG_TRIVIAL(info) << "Calling gst_element_link()...";
@@ -273,7 +273,7 @@ int main(int argc, char** argv)
                 auto winId = new_camera_view->getVideoWidgetWinId();
                 BOOST_LOG_TRIVIAL(info) << "new_camera_view->getVideoWidgetWinId(): " << winId;
 
-                gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(sink.get()), winId);
+                gst_video_overlay_set_window_handle((GstVideoOverlay*)sink.get(), winId);
 
                 // run the pipeline
                 BOOST_LOG_TRIVIAL(info) << "starting the gstreamer pipeline";

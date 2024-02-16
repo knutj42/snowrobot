@@ -25,11 +25,21 @@ GList_ptr make_GList_ptr(GList* the_list) {
   return GList_ptr(the_list, freeGList);
 }
 
-auto freeGstCaps = [](GstCaps* the_caps) {gst_caps_unref(the_caps);};
-using GstCaps_ptr = std::unique_ptr<GstCaps, decltype(freeGstCaps)>;
+auto unrefGstCaps = [](GstCaps* the_caps) {gst_caps_unref(the_caps);};
+using GstCaps_ptr = std::unique_ptr<GstCaps, decltype(unrefGstCaps)>;
 GstCaps_ptr make_GstCaps_ptr(GstCaps* the_caps) {
-  return GstCaps_ptr(the_caps, freeGstCaps);
+  return GstCaps_ptr(the_caps, unrefGstCaps);
 }
+
+auto unrefGstElement = [](GstElement* obj) {gst_object_unref(obj);};
+using GstElement_ptr = std::unique_ptr<GstElement, decltype(unrefGstElement)>;
+GstElement_ptr make_GstElement_ptr(GstElement* obj) {
+  return GstElement_ptr(obj, unrefGstElement);
+}
+
+ 
+
+
 
 auto stopAndFreeMonitor = [](GstDeviceMonitor* monitor) {
   gst_device_monitor_stop(monitor);
@@ -39,6 +49,7 @@ using GstDeviceMonitor_ptr = std::unique_ptr<GstDeviceMonitor, decltype(stopAndF
 GstDeviceMonitor_ptr make_GstDeviceMonitor_ptr(GstDeviceMonitor* monitor) {
   return GstDeviceMonitor_ptr(monitor, stopAndFreeMonitor);
 }
+
 
 }
 

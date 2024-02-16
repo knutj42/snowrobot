@@ -4,8 +4,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 project(Client)
 
+
 add_executable(client client.cpp)
 target_compile_features(client PUBLIC cxx_std_23)
+
 
 find_package(Boost 1.84.0
              COMPONENTS log program_options json
@@ -23,6 +25,7 @@ target_include_directories(client PRIVATE
 target_link_directories(client PRIVATE
     C:/msys64/ucrt64/lib
 )
+
 
 
 target_link_libraries(client PRIVATE

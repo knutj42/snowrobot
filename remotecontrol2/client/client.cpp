@@ -1,3 +1,6 @@
+#include "../common/linebasedserver.h"
+#include "../common/gst_wrappers.h"
+
 #include <winsock2.h>
 
 #include <cmath>
@@ -23,7 +26,6 @@
 #include <boost/json/serialize.hpp>
 #include <boost/json/parse.hpp>
 
-#include "../common/linebasedserver.h"
 
 namespace snowrobot {
 
@@ -82,12 +84,23 @@ int main(int argc, char** argv)
 
   BOOST_LOG_TRIVIAL(info) << "This program is linked against GStreamer " << major << "." << minor << "." << micro << " " << nano_str;
 
-  GstElement *pipeline = gst_pipeline_new ("xvoverlay");
-  GstElement *src = gst_element_factory_make ("videotestsrc", NULL);
-  GstElement *sink = gst_element_factory_make ("d3dvideosink", NULL);
-  gst_bin_add_many (GST_BIN (pipeline), src, sink, NULL);
-  gst_element_link (src, sink);
+  BOOST_LOG_TRIVIAL(info) << "Calling gst_pipeline_new()...";
+  GstElement_ptr pipeline(gst_pipeline_new("xvoverlay"));
 
+  BOOST_LOG_TRIVIAL(info) << "Calling gst_element_factory_make()...";
+  GstElement_ptr src(gst_element_factory_make("videotestsrc", NULL));
+
+  BOOST_LOG_TRIVIAL(info) << "Calling gst_element_factory_make()...";
+  GstElement_ptr sink(gst_element_factory_make("d3dvideosink", NULL));
+
+  BOOST_LOG_TRIVIAL(info) << "Calling gst_bin_add_many()..." << pipeline.get() << "  " << src.get() << "  " << sink.get();
+  gst_bin_add_many(GST_BIN(pipeline.get()), src.get(), sink.get(), NULL);
+
+
+  BOOST_LOG_TRIVIAL(info) << "Calling gst_element_link()...";
+  gst_element_link(src.get(), sink.get());
+
+  BOOST_LOG_TRIVIAL(info) << "Created gstreamer pipeline.";
 
   int debug_port_nr;
   std::string server_host;
@@ -260,18 +273,17 @@ int main(int argc, char** argv)
                 auto winId = new_camera_view->getVideoWidgetWinId();
                 BOOST_LOG_TRIVIAL(info) << "new_camera_view->getVideoWidgetWinId(): " << winId;
 
-                gst_video_overlay_set_window_handle (GST_VIDEO_OVERLAY (sink), winId);
+                gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(sink.get()), winId);
 
                 // run the pipeline
                 BOOST_LOG_TRIVIAL(info) << "starting the gstreamer pipeline";
 
-                GstStateChangeReturn sret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
+                GstStateChangeReturn sret = gst_element_set_state(pipeline.get(), GST_STATE_PLAYING);
                 if (sret == GST_STATE_CHANGE_FAILURE) {
                   BOOST_LOG_TRIVIAL(error) << "failed to start the gstreamer pipeline" << sret;
-                  gst_element_set_state (pipeline, GST_STATE_NULL);
-                  gst_object_unref (pipeline);
+                  gst_element_set_state(pipeline.get(), GST_STATE_NULL);
                   // Exit application
-                  QTimer::singleShot(0, QApplication::activeWindow(), SLOT(quit()));
+                  //QTimer::singleShot(0, QApplication::activeWindow(), SLOT(quit()));
                 }
               }
             }

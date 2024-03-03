@@ -14,5 +14,6 @@ add_subdirectory("remotecontrol2/common")
 add_subdirectory("remotecontrol2/server")
 
 add_subdirectory("remotecontrol2/client")
+add_subdirectory("remotecontrol2/clienttest")
 
 add_subdirectory("remotecontrol2/tests")

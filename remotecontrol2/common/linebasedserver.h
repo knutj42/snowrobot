@@ -19,18 +19,24 @@ using namespace boost::asio::experimental::awaitable_operators;
 
 namespace snowrobot {
 
-using ConnectionMadeFunc = std::function<void(
-  const std::string&  // connection token (a string that uniquely identifies the connection)
+using ConnectionMadeFunc = std::function<
+  std::string  // the callback function can return a response-string (no reponse will be sent if this is empty)
+  (
+    boost::asio::ip::tcp::socket&  // the client socket
   )>;
-using ConnectionLostFunc = std::function<void(
-  const std::string&  // connection token (a string that uniquely identifies the connection)
-)>;
+
+using ConnectionLostFunc = std::function<
+  void
+  (
+    boost::asio::ip::tcp::socket&  // the client socket
+  )>;
+
 using RequestReceivedFunc = std::function<
-    std::string  // the callback function should return a response-string
-      (
-        const std::string&,  // connection token (a string that uniquely identifies the connection)
-        const std::string&  // the request string
-      )>;
+  std::string  // the callback function should return a response-string (no response will be sent if this is empty)
+  (
+    boost::asio::ip::tcp::socket&,  // the client socket
+    const std::string&  // the request string
+  )>;
 
 
 // This class implements a simple line-based server. It opens a tcp/ip listen socket on the specified portnumber and start
@@ -47,14 +53,14 @@ class LineBasedServer {
                     ConnectionLostFunc connection_lost_func,
                     RequestReceivedFunc response_func
                    );
+
   private:
     boost::asio::awaitable<void> listen(boost::asio::io_context& ctx, boost::asio::ip::port_type admin_port_nr);
 
     boost::asio::awaitable<void> watchdog(std::chrono::steady_clock::time_point& deadline);
 
     boost::asio::awaitable<void> handle_connection(boost::asio::ip::tcp::socket sock);
-    boost::asio::awaitable<void> handle_requests(const std::string& connection_token,
-                                                 boost::asio::ip::tcp::socket& sock,
+    boost::asio::awaitable<void> handle_requests(boost::asio::ip::tcp::socket& sock,
                                                  std::chrono::steady_clock::time_point& deadline);
 
     ConnectionMadeFunc connection_made_func_;

@@ -32,6 +32,7 @@ target_link_libraries(server PRIVATE
     Boost::program_options
     gstreamer-1.0
     glib-2.0
+    gobject-2.0
     pthread
 
     #libgstapp-1.0

@@ -5,6 +5,11 @@
 
 #include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
+#include <new>
+
+
 #include <gst/gst.h>
 
 namespace snowrobot {
@@ -40,6 +45,50 @@ GstElement_ptr make_GstElement_ptr(GstElement* obj) {
  
 
 
+#define ASSERT_NOT_NULL(the_pointer) while(true) {\
+  if(!the_pointer) { \
+    std::ostringstream msg; \
+    msg << "Got a nullptr at " << __FILE__ << ":" << __LINE__ << "!"; \
+    throw std::runtime_error(msg.str()); \
+  } \
+  break;}
+
+#define ASSERT_TRUE(the_test_variable) while(true) {\
+  if(!the_test_variable) { \
+    std::ostringstream msg; \
+    msg << "Got a falsish expression at " << __FILE__ << ":" << __LINE__ << "!"; \
+    throw std::runtime_error(msg.str()); \
+  } \
+  break;}
+
+
+
+// The function_pointer magic was copied from here: https://stackoverflow.com/questions/28746744/passing-capturing-lambda-as-function-pointer
+template<int, typename Callable, typename Ret, typename... Args>
+auto function_pointer_(Callable&& c, Ret (*)(Args...))
+{
+    static std::decay_t<Callable> storage = std::forward<Callable>(c);
+    static bool used = false;
+    if(used)
+    {
+        using type = decltype(storage);
+        storage.~type();
+        new (&storage) type(std::forward<Callable>(c));
+    }
+    used = true;
+
+    return [](Args... args) -> Ret {
+        auto& c = *std::launder(&storage);
+        return Ret(c(std::forward<Args>(args)...));
+    };
+}
+
+template<typename Fn, int N = 0, typename Callable>
+
+Fn* function_pointer(Callable&& c)
+{
+    return function_pointer_<N>(std::forward<Callable>(c), (Fn*)nullptr);
+}
 
 auto stopAndFreeMonitor = [](GstDeviceMonitor* monitor) {
   gst_device_monitor_stop(monitor);

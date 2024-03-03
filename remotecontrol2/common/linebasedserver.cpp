@@ -78,12 +78,12 @@ boost::asio::awaitable<void> LineBasedServer::watchdog(std::chrono::steady_clock
 
 class ConnectionLostRAII {
   public:
-    ConnectionLostRAII(ConnectionLostFunc connection_lost_func, const std::string connection_token):
-      connection_lost_func_(connection_lost_func), connection_token_(connection_token) {
+    ConnectionLostRAII(ConnectionLostFunc connection_lost_func, boost::asio::ip::tcp::socket& sock):
+      connection_lost_func_(connection_lost_func), socket_(sock) {
     }
     ~ConnectionLostRAII() {
       try {
-        this->connection_lost_func_(this->connection_token_);
+        this->connection_lost_func_(this->socket_);
       }
       catch(const std::exception& e) {
         std::cerr << "~ConnectionLostRAII(): got an exception: " << e.what() << std::endl;
@@ -91,20 +91,28 @@ class ConnectionLostRAII {
     }
   private:
     ConnectionLostFunc connection_lost_func_;
-    std::string connection_token_;
+    boost::asio::ip::tcp::socket& socket_;
 };
+
 
 boost::asio::awaitable<void> LineBasedServer::handle_connection(boost::asio::ip::tcp::socket sock)
 {
   BOOST_LOG_TRIVIAL(info) << "LineBasedServer::handle_connection() got a new connection from " << sock.remote_endpoint();
-  std::string connection_token = sock.remote_endpoint().address().to_string() + ":" + std::to_string(sock.remote_endpoint().port());
-  this->connection_made_func_(connection_token);
-  ConnectionLostRAII connection_lost_raii(this->connection_lost_func_, connection_token);
+  ConnectionLostRAII connection_lost_raii(this->connection_lost_func_, sock);
+
 
   std::chrono::steady_clock::time_point deadline{};
   try {
+    std::string welcome_message = this->connection_made_func_(sock);
+    if (!welcome_message.empty()) {
+      welcome_message += "\n";
+      // Write the response back to the socket
+      co_await boost::asio::async_write(sock, boost::asio::buffer(welcome_message), boost::asio::use_awaitable);
+    }
+
+
     co_await (
-      this->handle_requests(connection_token, sock, deadline)
+      this->handle_requests(sock, deadline)
       
       // The "||" operator is overloaded by boost::asio::experimental::awaitable_operators and works like this:
       // When either of the handle_requests() or watchdog() coroutines exit, the io-operations in the other function will fail with
@@ -139,8 +147,7 @@ boost::asio::awaitable<void> LineBasedServer::handle_connection(boost::asio::ip:
   }
 }
 
-boost::asio::awaitable<void> LineBasedServer::handle_requests(const std::string& connection_token,
-                                                              boost::asio::ip::tcp::socket& sock,
+boost::asio::awaitable<void> LineBasedServer::handle_requests(boost::asio::ip::tcp::socket& sock,
                                                               std::chrono::steady_clock::time_point& deadline)
 {
   boost::asio::streambuf streambuf;
@@ -164,11 +171,15 @@ boost::asio::awaitable<void> LineBasedServer::handle_requests(const std::string&
             request.erase(request.size()-1);
           }
         }
-        std::string response = this->response_func_(connection_token, request);
-        response += "\n";
+        std::string response = this->response_func_(sock, request);
         request.clear();
-        // Write the response back to the socket
-        co_await boost::asio::async_write(sock, boost::asio::buffer(response), boost::asio::use_awaitable);
+        if (!response.empty()) {
+          if (response[response.size()-1] != '\n') {
+            response += "\n";
+          }
+          // Write the response back to the socket
+          co_await boost::asio::async_write(sock, boost::asio::buffer(response), boost::asio::use_awaitable);
+        }
       }
     }
     catch(const boost::system::system_error& e) {

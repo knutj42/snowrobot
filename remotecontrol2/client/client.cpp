@@ -421,6 +421,8 @@ main (int argc, char **argv)
 namespace snowrobot {
 
 
+GstElement* global_video_rtp_udpsrc_hack = nullptr;
+
 static void
 pad_added_handler(GstElement *element,
         GstPad     *pad,
@@ -431,6 +433,16 @@ pad_added_handler(GstElement *element,
   name = gst_pad_get_name (pad);
   BOOST_LOG_TRIVIAL(info) << "A new pad '" << name << "' was created";
  
+  /*if (g_str_has_prefix (name, "recv_rtp_src_")) {
+
+    outputSinkPad = gst_element_get_static_pad (session->output, "sink");
+    g_assert_cmpint (gst_pad_link (newPad, outputSinkPad), ==, GST_PAD_LINK_OK);
+    gst_object_unref (outputSinkPad);
+
+    g_print ("Linked!\n");
+  }*/
+
+
   g_free (name);
 
  
@@ -489,7 +501,22 @@ class CameraView : public QFrame {
 
     }
     
-    
+
+
+    static void pad_added_handler(GstElement *element, GstPad *pad, gpointer data) {
+      std::string pad_name = string_from_gchar(gst_pad_get_name(pad));
+      BOOST_LOG_TRIVIAL(info) << "A new pad '" << pad_name << "' was created";
+      CameraView* camera_view = (CameraView*)data;
+      std::string prefix = "recv_rtp_src_" + std::to_string(camera_view->camera_index_) + "_";
+      if (pad_name.find(prefix) == 0) {
+        GstPad* sink_pad =gst_element_get_static_pad(camera_view->h264depay_, "sink");
+        ASSERT_NOT_NULL(sink_pad);
+        if (gst_pad_link(pad, sink_pad) != GST_PAD_LINK_OK) {
+          THROW_RUNTIME_ERROR("Failed to link the new pad!");
+        }
+      }      
+    }
+
     boost::json::object initialize(const std::string& server_host,
                GstBin* pipeline, GstElement* rtpbin,
                const boost::json::object& camera,
@@ -497,6 +524,7 @@ class CameraView : public QFrame {
                )  {
       pipeline_ = pipeline;
       rtpbin_ = rtpbin;
+      camera_index_ = camera_index;
       std::string camera_name(camera.at("name").as_string());
       int64_t video_rtcp_udpsrc_port = camera.at("video_rtcp_udpsrc_port").as_int64();
 
@@ -543,6 +571,8 @@ class CameraView : public QFrame {
 
       video_rtp_udpsrc_ = gst_element_factory_make("udpsrc", "video_rtp_udpsrc_");
       ASSERT_NOT_NULL(video_rtp_udpsrc_);
+      // temp hack:
+      global_video_rtp_udpsrc_hack = video_rtp_udpsrc_;
       g_object_set(video_rtp_udpsrc_, "port", 0, NULL);
       GstCaps* video_rtp_udpsrc_caps = gst_caps_from_string("application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)H264");
       g_object_set(video_rtp_udpsrc_, "caps", video_rtp_udpsrc_caps, NULL);
@@ -592,12 +622,13 @@ class CameraView : public QFrame {
 
       gst_video_overlay_set_window_handle((GstVideoOverlay*)this->videosink_, winId);
 
-
       boost::json::object response_msg;
       response_msg["name"] = camera_name;
       response_msg["camera_index"] = camera_index;
       response_msg["video_rtp_udpsrc_port"] = video_rtp_udpsrc_assigned_port;
       response_msg["video_rtcp_udpsrc_port"] = video_rtcp_udpsrc_assigned_port;
+
+      g_signal_connect(rtpbin, "pad-added", G_CALLBACK(CameraView::pad_added_handler), this);
 
       return std::move(response_msg);
     }
@@ -638,6 +669,7 @@ class CameraView : public QFrame {
 
   private:
     std::string camera_name;
+    int camera_index_;
     QComboBox* resolutions_selector;
     std::list<std::string> resolutions_;
     QWidget* video_widget;
@@ -688,8 +720,6 @@ int main(int argc, char** argv)
   g_object_set (rtpbin, "latency", 200, "do-retransmission", TRUE,
       "rtp-profile", GST_RTP_PROFILE_AVPF, NULL);
 
-  g_signal_connect(rtpbin, "pad-added", G_CALLBACK(pad_added_handler), nullptr);
-
 
   GMainLoop* loop = g_main_loop_new(NULL, FALSE);
   ASSERT_NOT_NULL(loop);
@@ -713,6 +743,8 @@ int main(int argc, char** argv)
   gst_bin_add_many(GST_BIN_CAST(pipeline),
      rtpbin,
      NULL);
+
+  g_signal_connect(rtpbin, "pad-added", G_CALLBACK(pad_added_handler), nullptr);
 
 
   BOOST_LOG_TRIVIAL(info) << "Created gstreamer pipeline.";

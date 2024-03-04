@@ -61,6 +61,12 @@ GstElement_ptr make_GstElement_ptr(GstElement* obj) {
   } \
   break;}
 
+#define THROW_RUNTIME_ERROR(error_msg) while(true) {\
+    std::ostringstream msg; \
+    msg << "Got a unexpected error at " << __FILE__ << ":" << __LINE__ << ":" << error_msg; \
+    throw std::runtime_error(msg.str()); \
+   \
+  break;}
 
 
 // The function_pointer magic was copied from here: https://stackoverflow.com/questions/28746744/passing-capturing-lambda-as-function-pointer

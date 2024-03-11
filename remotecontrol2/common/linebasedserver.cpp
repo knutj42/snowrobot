@@ -32,12 +32,13 @@ boost::asio::awaitable<void> LineBasedServer::listen(boost::asio::io_context& ct
 {
   
   boost::asio::ip::tcp::acceptor acceptor(ctx, {boost::asio::ip::tcp::v4(), admin_port_nr}, false);
-
-  //acceptor.set_option(boost::asio::socket_base::reuse_address(false));
-
+#ifdef _WIN32
   typedef boost::asio::detail::socket_option::boolean<BOOST_ASIO_OS_DEF(SOL_SOCKET), SO_EXCLUSIVEADDRUSE> excluse_address;
   acceptor.set_option(excluse_address(true));
-  
+#else
+  acceptor.set_option(boost::asio::socket_base::reuse_address(false));
+#endif
+
   try {
     for (;;)
     {

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 project(SnowRobotCommon)
@@ -10,7 +10,7 @@ add_library(snowrobotcommon
   network.cpp
   )
 
-target_compile_features(snowrobotcommon PUBLIC cxx_std_23)
+target_compile_features(snowrobotcommon PUBLIC cxx_std_20)
 
 find_package(Boost 1.84.0
              COMPONENTS log

@@ -7,7 +7,9 @@
 #include <iostream>
 #include <typeinfo>
 
+#ifdef _WIN32
 #include <winsock2.h>
+#endif
 #include <boost/program_options.hpp>
 #include <boost/json/array.hpp>
 #include <boost/json/object.hpp>
@@ -79,7 +81,13 @@ class CameraInfo {
       GstElement* videoconvert = gst_element_factory_make("videoconvert", NULL);
       ASSERT_NOT_NULL(videoconvert);
 
+// TODO: get the resolution from the client!
+#ifdef _WIN32
       GstCaps* video_caps = gst_caps_from_string("video/x-raw, format=YUY2, width=640, height=360, framerate=30/1, pixel-aspect-ratio=1/1");
+#else
+      GstCaps* video_caps = gst_caps_from_string("video/x-raw, format=(string)YUY2, width=(int)640, height=(int)480");
+
+#endif
       //g_object_set (video_source, "caps", gst_caps_from_string("video/x-raw,width=640,height=360,framerate=15/1"), NULL);
       //g_object_set (videoconvert, "caps", gst_caps_from_string("video/x-raw,width=640,height=360,framerate=15/1"), NULL);
 
@@ -98,7 +106,22 @@ class CameraInfo {
       ASSERT_TRUE(gst_element_link(video_source, queue));
       ASSERT_TRUE(gst_element_link(queue, videorate));
       ASSERT_TRUE(gst_element_link_filtered(videorate, videoconvert, video_caps));
+      
+      
+#ifdef _WIN32
       ASSERT_TRUE(gst_element_link(videoconvert, x264enc));
+#else
+      // hack to avoid this issue:
+      //   https://gstreamer-devel.narkive.com/zUkuYpXL/x264-error-baseline-profile-doesn-t-support-4-2-2
+//      GstCaps* video_caps2 = gst_caps_from_string("video/x-raw,format=i420");
+        //GstCaps* video_caps2 = gst_caps_from_string("video/x-raw,format=yuv420p");
+
+
+      GstCaps* video_caps2 = gst_caps_from_string("video/x-raw,format=I420");
+      ASSERT_TRUE(gst_element_link_filtered(videoconvert, x264enc, video_caps2));
+
+#endif
+
       ASSERT_TRUE(gst_element_link(x264enc, rtph264pay));
 
       std::string recv_rtcp_sink_pad_name = "recv_rtcp_sink_" + std::to_string(this->camera_index_);
@@ -144,8 +167,9 @@ class CameraInfo {
 
       g_object_set(video_rtp_udpsink, "port", video_client_rtp_udpsrc_port, NULL);
       g_object_set(video_rtp_udpsink, "host", client_address.c_str(), NULL);
-      g_object_set(video_rtp_udpsink, "ts-offset", 0, NULL);
-
+      gint64 ts_offset = 0;
+      g_object_set(video_rtp_udpsink, "ts-offset", ts_offset, NULL);
+      
       ASSERT_TRUE(gst_bin_add(this->pipeline_, video_rtcp_udpsink));
       ASSERT_TRUE(gst_bin_add(this->pipeline_, video_rtp_udpsink));
 
@@ -251,10 +275,10 @@ int main(int argc, char** argv)
       std::string device_class = string_from_gchar(gst_device_get_device_class(device));
       std::string display_name = string_from_gchar(gst_device_get_display_name(device));
 
-      if (device_class != "Audio/Source" && device_class != "Video/Source") {
-        continue;
+      if (device_class != "Audio/Source" && device_class != "Video/Source" && device_class != "Source/Video") {
+        //continue;
       }
-      if (device_class == "Video/Source") {
+      if (device_class == "Video/Source" || device_class == "Source/Video") {
         camera_count += 1;
       }
       BOOST_LOG_TRIVIAL(info) << "device_class: " << device_class << ": " << display_name;
@@ -384,7 +408,7 @@ int main(int argc, char** argv)
         }
 
         std::string device_class = string_from_gchar(gst_device_get_device_class(device));
-        if (device_class != "Video/Source") {
+        if (device_class != "Video/Source" && device_class != "Source/Video") {
           continue;
         }
         camere_index++;

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 project(Server)
@@ -8,18 +8,27 @@ project(Server)
 add_executable(server server.cpp)
 
 
-target_compile_features(server PUBLIC cxx_std_23)
+target_compile_features(server PUBLIC cxx_std_20)
 
 find_package(Boost 1.84.0
              COMPONENTS json log program_options
              REQUIRED)
 
-
+if(CMAKE_HOST_WIN32)
 target_include_directories(server PRIVATE
   C:/msys64/ucrt64/include/gstreamer-1.0
   C:/msys64/ucrt64/include/glib-2.0
   C:/msys64/usr/lib/glib-2.0/include
 )
+else()
+target_include_directories(server PRIVATE
+    /usr/include/gstreamer-1.0
+    /usr/include/glib-2.0
+    /usr/lib/arm-linux-gnueabihf/glib-2.0/include
+)
+endif()
+
+
 
 target_link_directories(server PRIVATE
 )

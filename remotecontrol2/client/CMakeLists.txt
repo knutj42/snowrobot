@@ -18,7 +18,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Network Gui Core MultimediaWidgets)
 target_include_directories(client PRIVATE
     C:/msys64/ucrt64/include/gstreamer-1.0
     C:/msys64/ucrt64/include/qt6
-    C:/msys64/mingw64/include/glib-2.0
+    C:/msys64/ucrt64/include/glib-2.0
     C:/msys64/usr/lib/glib-2.0/include
     )
 
@@ -27,6 +27,7 @@ target_link_directories(client PRIVATE
 )
 
 
+add_subdirectory("../common" "snowrobotcommonoutput")
 
 target_link_libraries(client PRIVATE
     snowrobotcommon
